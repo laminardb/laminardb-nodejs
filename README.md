@@ -14,11 +14,11 @@ npm distribution land over the next phases. Not yet on npm — build from source
 ## Quickstart (current surface)
 
 ```js
-import { open } from '@laminardb/node'
+import { open, version } from '@laminardb/node'
 
 const conn = await open()
 await conn.execute('CREATE SOURCE sensors (ts TIMESTAMP, device VARCHAR, value DOUBLE)')
-console.log(await require('@laminardb/node').version())
+console.log(version())
 await conn.close()
 ```
 
@@ -35,7 +35,7 @@ Requires Rust stable (≥ 1.95) and Node ≥ 20 with pnpm.
 just install   # pnpm install (@napi-rs/cli, vitest, prettier)
 just build     # debug addon + generated index.js / index.d.ts
 just test      # vitest suite against the built addon
-just verify    # fmt + clippy -D warnings + cargo test + vitest
+just verify    # fmt + clippy -D warnings + rust tests + build + vitest
 ```
 
 The first build clones and compiles the pinned LaminarDB core (git tag in `Cargo.toml`,

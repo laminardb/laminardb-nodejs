@@ -38,12 +38,14 @@ never modified from here.
 just install   # pnpm install
 just build     # napi build --platform (debug) + regenerate index.js/index.d.ts
 just test      # build + vitest suite against the real addon
-just verify    # cargo fmt --check, clippy --all-targets -D warnings, cargo test, vitest
-just review    # verify tooling + cargo machete + allows-grep + prettier --check
+just verify    # fmt + clippy -D warnings + rust tests (napi-noop backend) + build + vitest
+just review    # fmt + clippy -D warnings + cargo machete + allows-grep + prettier --check
 ```
 
-Every `#[allow(...)]` needs an inline `WHY:`. Conventional Commits; no AI/assistant
-attribution, no `Co-Authored-By` trailers, no tool-session metadata.
+Rust unit tests run as `cargo test --features napi-noop` — the no-op backend lets the test
+harness link without a Node host. Every `#[allow(...)]` (plain or inside `cfg_attr`) needs
+an inline `WHY:`. Conventional Commits; no AI/assistant attribution, no `Co-Authored-By`
+trailers, no tool-session metadata.
 
 ## Plans and authority
 

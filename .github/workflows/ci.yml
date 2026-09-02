@@ -55,7 +55,7 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo machete
       - name: allows-grep (every #[allow] carries an inline WHY:)
-        run: "! grep -rn '#\\[allow(' src/ | grep -v 'WHY:'"
+        run: "! grep -rnE '#\\[(cfg_attr\\([^)]*,\\s*)?allow\\(' src/ | grep -v 'WHY:'"
       - run: pnpm run format:check
 
   verify:

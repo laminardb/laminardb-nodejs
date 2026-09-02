@@ -76,9 +76,10 @@ tiny.
 
 - [x] `just build` = `napi build --platform` (debug; regenerates `index.js`/`index.d.ts`
       and `laminar_nodejs.<platform>.node` at the repo root).
-- [x] `just test` = build + `vitest run`; `just verify` = `cargo fmt     --check` +
-      `clippy --all-targets -D warnings` + `cargo test` + build + vitest; `just review`
-      adds `cargo machete`, the allows-grep, and prettier.
+- [x] `just test` = build + `vitest run`; `just verify` = `cargo fmt --check` +
+      `clippy --all-targets -D warnings` + `cargo test --features napi-noop` + build +
+      vitest; `just review` is the separate lint/tooling gate — `cargo fmt --check`,
+      `clippy`, `cargo machete`, the allows-grep, and prettier (no tests, no build).
 
 ## Task 0.5 — Spike: async-first seam (de-risks D2 before Phase 1)
 
@@ -95,9 +96,11 @@ tiny.
 ## Task 0.6 — CI
 
 - [x] `.github/workflows/ci.yml`, matrix `ubuntu-latest` and `macos-latest`: jobs
-      `rust-lint` (fmt + clippy `-D warnings`), `review` (`just review` — machete
-      installed via cargo-install cache), `verify` (Node 22, `pnpm install`,
-      `just verify`). Windows/musl runners join in Phase 2 (plan 03) per the phase map.
+      `rust-lint` (fmt + clippy `-D warnings`), `review` (the same commands as
+      `just review`, inlined — CI does not install `just`; machete via
+      `taiki-e/install-action`), `verify` (Node 22, `pnpm install`, the `just verify`
+      command set inlined). Windows/musl runners join in Phase 2 (plan 03) per the phase
+      map.
 - [x] The `api`-only feature set needs no system packages beyond Rust and a C/C++
       toolchain (established by the Java repo at the same pin).
 

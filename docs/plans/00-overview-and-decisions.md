@@ -183,11 +183,12 @@ Plan 06 (review gates) is written before Phase 1 exits.
 
 - **Commits**: Conventional Commits; no AI/assistant attribution, no `Co-Authored-By`
   trailers, no tool-session metadata (both repos' policy).
-- **Errors**: every native failure — sync throw or promise rejection — surfaces with a
+- **Errors**: every engine failure — sync throw or promise rejection — surfaces with a
   `[LAMINAR_<n>]` code prefix in the message (napi-rs 3.12 drops custom `error.code`
   values on rejections; verified, plan 01 §Spike results); the TS layer parses the prefix
   and rethrows the `LaminarError` hierarchy carrying `error.code`. Never swallow; never
-  surface napi-level failures raw.
+  surface engine failures raw. napi-derive's argument-coercion rejections (wrong JS
+  argument types) are the one class beneath this layer — the TS wrapper (D8) wraps those.
 - **Lifecycles**: every handle has an idempotent `close()`; use-after-close rejects with
   `LAMINAR_101`, never segfaults. GC finalizers are a leak backstop only — no cleanup
   logic lives in them.

@@ -105,9 +105,7 @@ fn saturating_i64(value: u64) -> i64 {
 ///
 /// Phase 0 opens with defaults only; `openWithConfig` (storage directory,
 /// checkpoint options) arrives in Phase 1 (plan 02 §2).
-// WHY: test builds compile out napi's registration constructor, leaving this
-// free function unreferenced for dead-code analysis.
-#[cfg_attr(test, allow(dead_code))]
+#[cfg_attr(test, allow(dead_code))] // WHY: test builds strip napi registration
 #[napi]
 pub async fn open() -> Result<Connection> {
     let db = LaminarDB::open().map_err(map_db_error)?;

@@ -37,9 +37,10 @@ review:
     just allows-grep
     pnpm run format:check
 
-# Every `#[allow(...)]` in src/ must carry an inline `WHY:` justification.
+# Every `#[allow(...)]` in src/ — plain or inside `cfg_attr` — must carry an
+# inline `WHY:` justification.
 allows-grep:
-    @! grep -rn '#\[allow(' src/ | grep -v 'WHY:'
+    @! grep -rnE '#\[(cfg_attr\([^)]*,\s*)?allow\(' src/ | grep -v 'WHY:'
 
 # Reinstall tool dependencies after a lockfile change.
 install:

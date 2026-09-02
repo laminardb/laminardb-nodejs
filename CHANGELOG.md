@@ -13,6 +13,7 @@ pinned core (plan 00 D4, `CORE_PIN.md`).
 - Native surface: `open()`, `Connection.execute()`, `Connection.isClosed()`,
   `Connection.close()`, `version()`.
 - Error contract: core `DbError` mapped through the `api::ApiError` taxonomy to JS errors
-  carrying `code: "LAMINAR_<n>"`.
+  whose message carries a `[LAMINAR_<n>]` code prefix (typed classes exposing `error.code`
+  arrive with the Phase 1 TypeScript layer).
 - vitest smoke suite, `just` orchestration (`build`/`test`/`verify`/`review`), CI on Linux
   and macOS, decision records and phase plans under `docs/plans/`.
