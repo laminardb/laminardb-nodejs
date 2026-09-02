@@ -1,6 +1,6 @@
 # Plan 01 — Phase 0: repo scaffold, build wiring, CI
 
-Status: **Executing (2026-09-02)** · Prerequisite: plan 00 (decisions D1–D9) Exit:
+Status: **Complete (2026-09-02)** · Prerequisite: plan 00 (decisions D1–D9) Exit:
 `just verify` builds the addon and runs the vitest smoke suite green in CI on Linux x86_64
 and macOS (arm64 and x86_64).
 
@@ -117,15 +117,15 @@ tiny.
 ## Acceptance checklist (Phase 0 exit)
 
 - [x] `just verify` green locally (macOS arm64; 4 Rust unit tests + 7 vitest tests).
-- [ ] CI green on both matrix OSes from a clean checkout (proves the pinned git-tag core
-      dep resolves without sibling clones). Open: awaits the first push to
-      `laminardb/laminardb-nodejs`.
+- [x] CI green on both matrix OSes from a clean checkout (proves the pinned git-tag core
+      dep resolves without sibling clones). Run 33684956017 on `b800718`, all jobs green
+      (14m14s).
 - [x] `just review` green locally (fmt, clippy `-D warnings`, machete, allows-grep,
       prettier); `AGENTS.md` committed; plan checkboxes updated.
-- [ ] Phase-exit review recorded in `docs/reviews/phase0-<date>.md` with zero open REQUEST
-      CHANGES findings. Open: run after CI is green.
-- [ ] Conventional commit history; no AI/assistant attribution. (Commits land with this
-      plan; checked off in the review pass.)
+- [x] Phase-exit review recorded in `docs/reviews/phase0-2026-09-02.md` with zero open
+      REQUEST CHANGES findings (independent pass: 1 REQUEST CHANGES + 4 suggestions, all
+      resolved in `b800718`).
+- [x] Conventional commit history; no AI/assistant attribution.
 
 ## Spike results (core v0.30.0 / napi 3.12.2 / napi-derive 3.6.3 / @napi-rs/cli 3.8.6)
 
