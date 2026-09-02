@@ -33,12 +33,17 @@ try {
     stdio: 'inherit',
   })
   const installed = join(project, 'node_modules', '@laminardb', 'node')
-  const binary = `laminar_nodejs.${platform}-${arch}.node`
-  const built = join(root, binary)
-  if (!existsSync(built)) {
-    throw new Error(`build the addon first: ${binary} not found at the repo root`)
+  // Platform suffixes differ by OS: darwin-arm64.node vs linux-x64-gnu.node
+  // (musl would be -musl); find whatever `napi build --platform` produced.
+  const binary = readdirSync(root).find(
+    (f) => f.startsWith(`laminar_nodejs.${platform}-${arch}`) && f.endsWith('.node'),
+  )
+  if (binary === undefined) {
+    throw new Error(
+      `build the addon first: no laminar_nodejs.${platform}-${arch}*.node at the repo root`,
+    )
   }
-  cpSync(built, join(installed, binary))
+  cpSync(join(root, binary), join(installed, binary))
   if (!readdirSync(installed).includes('index.js')) {
     throw new Error('generated loader missing from the tarball (files field)')
   }
