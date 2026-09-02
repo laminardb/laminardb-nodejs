@@ -6,6 +6,7 @@ node_modules/
 *.node
 *.log
 coverage/
+dist/
 
 # Tooling
 .DS_Store

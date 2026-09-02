@@ -1,12 +1,12 @@
 {
   "name": "@laminardb/node",
   "version": "0.30.0-alpha.1",
-  "description": "Embedded streaming SQL for Node.js — official LaminarDB native binding",
-  "main": "index.js",
-  "types": "index.d.ts",
+  "description": "Embedded streaming SQL for Node.js \u2014 official LaminarDB native binding",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
     "index.js",
-    "index.d.ts"
+    "dist"
   ],
   "napi": {
     "binaryName": "laminar_nodejs",
@@ -21,14 +21,15 @@
     ]
   },
   "scripts": {
-    "build": "napi build --platform --release",
-    "build:debug": "napi build --platform",
+    "build": "napi build --platform --release && tsc",
+    "build:debug": "napi build --platform && tsc",
     "artifacts": "napi artifacts",
     "prepublishOnly": "napi prepublish -t npm",
     "version": "napi version",
     "test": "vitest run",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "build:ts": "tsc"
   },
   "engines": {
     "node": ">= 20"
@@ -48,7 +49,10 @@
   ],
   "devDependencies": {
     "@napi-rs/cli": "^3.8.6",
+    "@types/node": "^26.4.1",
+    "apache-arrow": "^21.2.0",
     "prettier": "^3.9.6",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }
 }

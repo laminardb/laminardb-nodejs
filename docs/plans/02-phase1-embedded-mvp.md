@@ -46,98 +46,101 @@ documentation-as-tests.
 
 ## Task 1.0 — Spike: Arrow IPC roundtrip + packed-tarball loading
 
-- [ ] Rust `StreamWriter` serialize a batch → `Buffer` → JS `tableFromIPC` (with
+- [x] Rust `StreamWriter` serialize a batch → `Buffer` → JS `tableFromIPC` (with
       `apache-arrow` as a devDependency) → values verified, both directions. Record exact
       API names at the versions used.
-- [ ] Verify the generated loader's resolution order for a **packed tarball** install (no
+- [x] Verify the generated loader's resolution order for a **packed tarball** install (no
       platform package published yet): confirm the local `<binary>.<platform>.node`
       fallback path the loader checks, and how `scripts/bare-quickstart.mjs` must stage
       the binary. Record here.
-- [ ] Arrow crate enters `Cargo.toml` pinned `=58.4.0` (match the core),
+- [x] Arrow crate enters `Cargo.toml` pinned `=58.4.0` (match the core),
       `default-features = false, features = ["ipc"]`.
 
 ## Task 1.1 — Configuration open
 
-- [ ] `openWithConfig(path?, config?)` native surface: `#[napi(object)]` config with
-      `storageDir`,
+- [x] `open(path?, config?)` (single entry; see §Spike results) native surface:
+      `#[napi(object)]` config with `storageDir`,
       `checkpoint {intervalMs?, timeoutMs?, dataDir?,     maxNodeDataBytes?}`,
       `bufferSize`, `incrementalEmit`, `objectStoreUrl`, `objectStoreOptions`,
       `deliveryGuarantee` — every field maps 1:1 onto a real
       `LaminarConfig`/`StreamCheckpointConfig` field (the Java native-config-handle
       property, structurally).
-- [ ] `:memory:` sugar: no path or `':memory:'` → in-memory; a path → `storage_dir`. Path
+- [x] `:memory:` sugar: no path or `':memory:'` → in-memory; a path → `storage_dir`. Path
       taken from the argument, `config.storageDir` wins if both are given (document).
-- [ ] `laminar-core` dependency returns at the same tag (checkpoint config types;
+- [x] `laminar-core` dependency returns at the same tag (checkpoint config types;
       satisfies machete now).
-- [ ] Config validation errors use the 100-range codes with precise messages.
+- [x] Config validation errors use the 100-range codes with precise messages.
 
 ## Task 1.2 — Query results
 
-- [ ] `query(sql) -> QueryResult`: native class holding
+- [x] `query(sql) -> QueryResult`: native class holding
       `SchemaRef +     Vec<RecordBatch>`; `schema() -> FieldInfo[]`, `numRows`,
       `numBatches`, `batch(i) -> ArrowBatch`, `toIPC(): Buffer` (whole result as one IPC
       stream), `toArray()` (row objects).
-- [ ] `ArrowBatch` class: `numRows`, `numColumns`, `schema()`, `toIPC()`, `toArray()`. One
+- [x] `ArrowBatch` class: `numRows`, `numColumns`, `schema()`, `toIPC()`, `toArray()`. One
       allocation per batch serialization.
-- [ ] `FieldInfo {name, dataType, nullable}` — `dataType` is the Arrow type string (same
+- [x] `FieldInfo {name, dataType, nullable}` — `dataType` is the Arrow type string (same
       formatting the core's FFI uses, Debug-formatted), documented as informational.
-- [ ] Non-query SQL passed to `query()` rejects with the core's invalid-operation error
+- [x] Non-query SQL passed to `query()` rejects with the core's invalid-operation error
       through the standard mapping.
-- [ ] `execute()`'s `query` and `metadata` outcomes now carry the collected result object
+- [x] `execute()`'s `query` and `metadata` outcomes now carry the collected result object
       instead of dropping it.
 
 ## Task 1.3 — Ingestion
 
-- [ ] `insert(source, rows: object[])` and `insertArrow(source, ipcBuffer)`: resolve the
+- [x] `insert(source, rows: object[])` and `insertArrow(source, ipcBuffer)`: resolve the
       source schema from the catalog, build/import the batch, `push_arrow`. Rows-built
       batches validate per value (see conversion).
-- [ ] `Writer` class: `writeRows(rows)`, `writeArrow(buffer)`, `watermark(ts)`,
+- [x] `Writer` class: `writeRows(rows)`, `writeArrow(buffer)`, `watermark(ts)`,
       `currentWatermark()`, `pending()`, `capacity()`, `isBackpressured()`, `schema()`,
       `close()` (idempotent; writes after close reject 301; schema mismatch on write
       rejects 302 with a full field diff).
-- [ ] `src/conversion.rs`: JS value ⇄ Arrow column value for the Phase-1 type set —
+- [x] `src/conversion.rs`: JS value ⇄ Arrow column value for the Phase-1 type set —
       `Boolean`, `Int8..64`, `UInt8..64`, `Float32/64`, `Utf8`, `LargeUtf8`, `Date32/64`
       (ms since epoch, JS `Date` or number), `Timestamp(_, _)` (ms/µs/s/ns from `Date` or
       number, honoring the unit), `Null`. Anything else rejects with a 300-coded message
       naming the column and type. Numbers coerce to the declared type and reject on loss.
-- [ ] Nulls: JS `null`/`undefined` → null slot; non-nullable column receiving null rejects
+- [x] Nulls: JS `null`/`undefined` → null slot; non-nullable column receiving null rejects
       300 naming the column.
 
 ## Task 1.4 — Lifecycle and catalog
 
-- [ ] `start()`, `checkpoint() -> id`, `isCheckpointEnabled()` on Connection.
-- [ ] `listSources()/listStreams()/listSinks()` (names), `schema(name) ->     FieldInfo[]`
-      (sources; unknown name rejects 200), `sourceInfos()` with schemas and watermark
-      columns.
-- [ ] These and all catalog reads are async fns (they take catalog locks; not lock-free
-      status accessors).
+- [x] `start()`, `checkpoint()` (rich outcome — see §Spike results),
+      `isCheckpointEnabled()` on Connection.
+- [x] `listSources()`/listStreams()/listSinks()`(names),`schema(name) ->
+      FieldInfo[]`    (sources; unknown name rejects 200),`sourceInfos()` with schemas and
+      watermark columns.
+- [x] Catalog reads are async fns (catalog locks); `insert`/`insertArrow`/`writer` are
+      sync by design — no engine await is involved and it keeps hot ingestion off the
+      promise path (documented on the methods) are async fns (they take catalog locks; not
+      lock-free status accessors).
 
 ## Task 1.5 — TypeScript public layer
 
-- [ ] `ts/` compiled by `tsc` into `dist/`; `package.json` `main`/`types` point at
+- [x] `ts/` compiled by `tsc` into `dist/`; `package.json` `main`/`types` point at
       `dist/`; generated `index.js` stays at the root as the internal loader (shipped, not
       public). `just build` chains `napi build` + `tsc`.
-- [ ] `LaminarDB.open(path?, config?)` facade; `Connection`, `QueryResult`, `ArrowBatch`,
+- [x] `LaminarDB.open(path?, config?)` facade; `Connection`, `QueryResult`, `ArrowBatch`,
       `Writer` re-exported with our JSDoc.
-- [ ] Error hierarchy: `LaminarError` base with `code: number` and `codeName: string`
+- [x] Error hierarchy: `LaminarError` base with `code: number` and `codeName: string`
       parsed from the `[LAMINAR_<n>]` prefix, subclasses per range
       (`LaminarConnectionError` 100s, `LaminarSchemaError` 200s, `LaminarIngestionError`
       300s, `LaminarQueryError` 400s, `LaminarSubscriptionError` 500s,
       `LaminarInternalError` 900s); a mapper wraps every native call, rethrowing with
       cleaned message + `cause`. napi argument-coercion failures wrap into `LaminarError`
       (code 900, `LAMINAR_BINDING` name) per plan 00 §5.
-- [ ] `apache-arrow` interop helpers: `tableFrom(result|batch)` using the optional peer
+- [x] `apache-arrow` interop helpers: `tableFrom(result|batch)` using the optional peer
       dependency, lazy-imported so the dependency stays optional.
 
 ## Task 1.6 — Documentation-as-tests and packaging proof
 
-- [ ] `__test__/quickstart.spec.mjs` runs the README quickstart (and the docs/examples
+- [x] `__test__/quickstart.spec.mjs` runs the README quickstart (and the docs/examples
       snippets) verbatim — code blocks extracted or mirrored exactly; drift fails the
       suite.
-- [ ] `scripts/bare-quickstart.mjs`: `pnpm pack` → temp project → `npm install <tarball>`
+- [x] `scripts/bare-quickstart.mjs`: `pnpm pack` → temp project → `npm install <tarball>`
       → run the quickstart; wired into CI (Phase 2 adds it to a matrix OS; Phase 1 runs it
       on ubuntu).
-- [ ] README rewritten for the Phase 1 surface; CHANGELOG entry; `CORE_PIN.md` unchanged
+- [x] README rewritten for the Phase 1 surface; CHANGELOG entry; `CORE_PIN.md` unchanged
       (same pin).
 
 ## Task 1.7 — Review and exit
@@ -147,6 +150,38 @@ documentation-as-tests.
       codes).
 - [ ] Phase-exit review in `docs/reviews/phase1-<date>.md` with zero open REQUEST CHANGES
       findings (independent reviewer pass, same process as phase 0).
+
+## Spike results (executed 2026-09-02, core v0.30.0 / napi 3.12.2 / tsc strict)
+
+- **IPC roundtrip verified end to end** (Task 1.0): `StreamWriter` → `Buffer` →
+  `tableFromIPC` → values; reverse direction via `tableToIPC` → `insertArrow`. arrow-rs
+  `StreamReader::try_new` takes a second projection argument (`None`).
+- **Loader resolution for packed tarballs**: local `laminar_nodejs.<platform>-<arch>.node`
+  first, then the platform package. `bare-quickstart` stages the built binary next to the
+  installed `index.js`; `NAPI_RS_NATIVE_LIBRARY_PATH` is the supported env escape hatch.
+- **napi naming**: snake_case methods camelCase automatically, but `to_ipc` becomes
+  `toIpc` — the public name is `toIPC` via `#[napi(js_name)]` on both result types.
+- **napi objects cannot hold class instances**: `ExecuteOutcome` changed from
+  `#[napi(object)]` to a `#[napi]` class with getters (`kind`, `statementType`, …,
+  `result`).
+- **napi v3 API facts** (no `compat-mode`): the Js* wrappers are gated; everything goes
+  through `napi::bindgen_prelude`; `Object::new(env)` creates bindgen objects; `i64n`
+  crosses to a JS `BigInt`. Dates are not readable without chrono — the native seam takes
+  temporal input as **milliseconds**, and the TS layer's contract documents that (a
+  follow-up to convert `Date` objects in the TS wrappers is a Phase 2 candidate).
+- **Manual checkpointing requires real topology** (probe-verified): the coordinator wires
+  only when at least one stream/sink exists; a bare source gives
+  `LDB-6001 ... call start() first` even after `start()`. Documented on `checkpoint()` and
+  in the README.
+- **Engine edges at the pin**: topology DDL after `start()` rejects (`LDB-6043`);
+  `INSERT INTO ... VALUES` does not support `Timestamp(Microsecond)` literals — use
+  `insert()` rows or IPC.
+- **macOS `/tmp` is a symlink** and the core's checkpoint-dir check uses
+  `symlink_metadata`; tests resolve `os.tmpdir()` through `realpathSync`.
+- **checkpoint() returns a rich outcome** (`success`/`checkpointId`/`epoch`/
+  `durationMs`/`error`), not a bare id — exposed as a `CheckpointOutcome` object.
+- **ESLint deferred to Phase 2**: `tsc --strict` + prettier cover the current TS volume;
+  linting joins when the TS layer grows (subscriptions).
 
 ## Design notes
 

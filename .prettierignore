@@ -6,4 +6,5 @@ index.d.ts
 target/
 node_modules/
 coverage/
+dist/
 pnpm-lock.yaml

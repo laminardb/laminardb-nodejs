@@ -1,40 +1,85 @@
 # laminardb-nodejs
 
-Embedded streaming SQL for Node.js. This is the official Node.js binding for
-[LaminarDB](https://github.com/laminardb/laminardb), built as a [napi-rs](https://napi.rs)
-native addon over a pinned core release — the same two-layer shape as
-[`laminardb-java`](https://github.com/laminardb/laminardb-java) and `laminardb-python`,
-adapted to Node idioms: every data-plane call returns a `Promise`, subscriptions will be
-async iterables, and Arrow data moves as IPC `Buffer`s.
+Embedded streaming SQL for Node.js and TypeScript. This is the official Node.js binding
+for [LaminarDB](https://github.com/laminardb/laminardb), built as a
+[napi-rs](https://napi.rs) native addon over a pinned core release — the same two-layer
+shape as [`laminardb-java`](https://github.com/laminardb/laminardb-java) and
+`laminardb-python`, adapted to Node idioms: every data-plane call is a `Promise`, Arrow
+data moves as IPC `Buffer`s, and failures throw a typed error hierarchy.
 
-Status: **alpha — Phase 0** (scaffold; see `docs/plans/`). The current surface is
-open/execute/close and the error contract; query results, ingestion, subscriptions, and
-npm distribution land over the next phases. Not yet on npm — build from source.
+Status: **alpha** — embedded MVP (Phase 1). Subscriptions (async iterators), Windows/musl
+CI, and npm distribution land over the next phases. Not yet on npm — build from source.
 
-## Quickstart (current surface)
+## Quickstart
 
 ```js
-import { open, version } from '@laminardb/node'
+import { LaminarDB } from '@laminardb/node'
 
-const conn = await open()
+const conn = await LaminarDB.open()
 await conn.execute('CREATE SOURCE sensors (ts TIMESTAMP, device VARCHAR, value DOUBLE)')
-console.log(version())
+await conn.start()
+
+await conn.insert('sensors', [
+  { ts: Date.now(), device: 'd1', value: 21.5 },
+  { ts: Date.now(), device: 'd2', value: 18.25 },
+])
+
+const result = await conn.query(
+  'SELECT device, avg(value) AS avg_value FROM sensors GROUP BY device',
+)
+console.log(result.toArray()) // [{ device: 'd1', avg_value: 21.5 }, ...]
+
 await conn.close()
 ```
 
-Every failing native call rejects with an `Error` whose message carries a `[LAMINAR_<n>]`
-code prefix from the core's error taxonomy (100–199 connection, 200–299 schema, 300–399
-ingestion, 400–499 query, 500–599 subscription, 900–999 internal). The typed error-class
-layer (which re-exposes the code as `error.code`) ships with Phase 1.
+Durable embedded mode is one argument plus checkpointing:
+
+```js
+const conn = await LaminarDB.open('./data', { checkpoint: { intervalMs: 5000 } })
+```
+
+Topology DDL (`CREATE SOURCE` / `STREAM` / `SINK`) must run before `start()`; manual
+`checkpoint()` requires at least one stream or sink in the topology (the core wires the
+checkpoint coordinator only for real pipelines).
+
+## Data access
+
+- `result.toArray()` / `batch.toArray()` — row objects, no dependencies. Conventions:
+  temporal columns are **milliseconds since epoch** in and out; `Int64`/`UInt64` cross as
+  JS `BigInt`.
+- `result.toIPC()` / `batch.toIPC()` — one Arrow IPC stream `Buffer`; rehydrate with
+  [`apache-arrow`](https://www.npmjs.com/package/apache-arrow) (an optional peer
+  dependency): `tableFromIPC(result.toIPC())` or the bundled `tableFrom(result)` helper.
+- `conn.insertArrow(source, buffer)` / `writer.writeArrow(buffer)` — bulk ingestion
+  straight from Arrow IPC data.
+- `conn.writer(source)` — streaming writer with `writeRows`, `watermark`, and backpressure
+  visibility (`pending` / `capacity` / `isBackpressured`).
+
+## Errors
+
+Every failure throws a `LaminarError` subclass carrying the core's numeric `code`:
+`LaminarConnectionError` (100s), `LaminarSchemaError` (200s), `LaminarIngestionError`
+(300s), `LaminarQueryError` (400s), `LaminarSubscriptionError` (500s),
+`LaminarInternalError` (900s).
+
+```js
+try {
+  conn.insert('sensors', [{ ts: 1, device: 'd1', value: 'oops' }])
+} catch (error) {
+  if (error.code === 300) {
+    // error.message: column 'value': expected a number, got string
+  }
+}
+```
 
 ## Build from source
 
 Requires Rust stable (≥ 1.95) and Node ≥ 20 with pnpm.
 
 ```sh
-just install   # pnpm install (@napi-rs/cli, vitest, prettier)
-just build     # debug addon + generated index.js / index.d.ts
-just test      # vitest suite against the built addon
+just install   # pnpm install (@napi-rs/cli, vitest, prettier, typescript, apache-arrow)
+just build     # debug addon + generated loader + TypeScript layer (dist/)
+just test      # vitest suites against the built addon
 just verify    # fmt + clippy -D warnings + rust tests + build + vitest
 ```
 

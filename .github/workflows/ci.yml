@@ -79,5 +79,6 @@ jobs:
           node-version: 22
       - run: pnpm install --frozen-lockfile
       - run: cargo test --features napi-noop
-      - run: pnpm exec napi build --platform
+      - run: pnpm run build:debug
       - run: pnpm test
+      - run: node scripts/bare-quickstart.mjs

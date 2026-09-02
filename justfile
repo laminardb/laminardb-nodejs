@@ -6,13 +6,15 @@
 default:
     @just --list
 
-# Debug build of the addon + regenerate index.js/index.d.ts.
+# Debug build: addon + generated loader + TypeScript layer (dist/).
 build:
     pnpm exec napi build --platform
+    pnpm exec tsc
 
-# Release build of the addon + regenerate index.js/index.d.ts.
+# Release build: addon + generated loader + TypeScript layer (dist/).
 build-release:
     pnpm exec napi build --platform --release
+    pnpm exec tsc
 
 # Build + run the vitest suite against the built addon.
 test: build
@@ -42,10 +44,15 @@ review:
 allows-grep:
     @! grep -rnE '#\[(cfg_attr\([^)]*,\s*)?allow\(' src/ | grep -v 'WHY:'
 
+# Cold-consumer proof: pack the tarball, install into a throwaway project,
+# stage the local binary, run the README quickstart (plan 02 Task 1.6).
+bare-quickstart: build
+    node scripts/bare-quickstart.mjs
+
 # Reinstall tool dependencies after a lockfile change.
 install:
     pnpm install
 
 clean:
     cargo clean
-    rm -rf node_modules *.node
+    rm -rf node_modules *.node dist
