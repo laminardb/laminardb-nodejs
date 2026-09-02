@@ -1,0 +1,13 @@
+# Rust
+/target
+
+# Node
+node_modules/
+*.node
+*.log
+coverage/
+
+# Tooling
+.DS_Store
+.idea/
+.vscode/

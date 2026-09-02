@@ -1,0 +1,36 @@
+[package]
+name = "laminar-nodejs"
+version = "0.30.0-alpha.1" # tracks the pinned core tag; -alpha is the Phase 1 channel (plan 00 D4)
+edition = "2021" # matches the core workspace edition at the pin
+rust-version = "1.95" # core workspace floor at the pin
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["cdylib"]
+name = "laminar_nodejs" # laminar_nodejs.darwin-arm64.node / .so / .dll
+
+[dependencies]
+napi = { version = "3", default-features = false, features = [
+    "napi8",
+    "tokio_rt",
+    "async",
+] }
+napi-derive = "3"
+laminar-db = { git = "https://github.com/laminardb/laminardb", tag = "v0.30.0", default-features = false, features = [
+    "api",
+] }
+# Phase 1 adds laminar-core (same tag) for StreamCheckpointConfig when the
+# config mapping lands; until then it would fail cargo-machete.
+
+[build-dependencies]
+napi-build = "2"
+
+[features]
+# Enables napi's no-op backend so `cargo test` links without a Node host
+# providing the Node-API symbols. Test-only; never enabled in shipped builds.
+napi-noop = ["napi/noop"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "symbols"

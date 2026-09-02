@@ -1,0 +1,54 @@
+{
+  "name": "@laminardb/node",
+  "version": "0.30.0-alpha.1",
+  "description": "Embedded streaming SQL for Node.js — official LaminarDB native binding",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "napi": {
+    "binaryName": "laminar_nodejs",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "x86_64-unknown-linux-musl",
+      "aarch64-unknown-linux-gnu",
+      "aarch64-unknown-linux-musl",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc"
+    ]
+  },
+  "scripts": {
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "artifacts": "napi artifacts",
+    "prepublishOnly": "napi prepublish -t npm",
+    "version": "napi version",
+    "test": "vitest run",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "engines": {
+    "node": ">= 20"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/laminardb/laminardb-nodejs.git"
+  },
+  "keywords": [
+    "laminardb",
+    "streaming",
+    "sql",
+    "arrow",
+    "napi-rs",
+    "node-addon"
+  ],
+  "devDependencies": {
+    "@napi-rs/cli": "^3.8.6",
+    "prettier": "^3.9.6",
+    "vitest": "^4.1.11"
+  }
+}
