@@ -1982,6 +1982,8 @@ dependencies = [
 name = "laminar-nodejs"
 version = "0.30.0-alpha.1"
 dependencies = [
+ "arrow",
+ "laminar-core",
  "laminar-db",
  "napi",
  "napi-build",

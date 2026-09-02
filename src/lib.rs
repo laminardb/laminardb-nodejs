@@ -3,10 +3,16 @@
 //! Two layers, mirroring `laminardb-java` (plan 00 §2): this cdylib binds the
 //! pinned core's async API and owns handle lifetimes and the error contract;
 //! the TypeScript layer (`ts/`, Phase 1) is the friendly public surface.
-//! Phase 0 surface: `open`, `Connection::{execute, isClosed, close}`, `version`.
+//! Phase 1 surface: open (+config), Connection::{execute, query, insert,
+//! writer, lifecycle, catalog}, Arrow IPC data movement.
 
+mod arrow_ipc;
+mod config;
+mod conversion;
 mod database;
 mod error;
+mod ingestion;
+mod query;
 
 use napi_derive::napi;
 

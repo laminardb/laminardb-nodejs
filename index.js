@@ -700,6 +700,10 @@ if (!nativeBinding) {
 }
 
 module.exports = nativeBinding
+module.exports.ArrowBatch = nativeBinding.ArrowBatch
 module.exports.Connection = nativeBinding.Connection
+module.exports.ExecuteOutcome = nativeBinding.ExecuteOutcome
+module.exports.QueryResult = nativeBinding.QueryResult
+module.exports.Writer = nativeBinding.Writer
 module.exports.open = nativeBinding.open
 module.exports.version = nativeBinding.version

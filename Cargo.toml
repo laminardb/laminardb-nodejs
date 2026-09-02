@@ -19,8 +19,11 @@ napi-derive = "3"
 laminar-db = { git = "https://github.com/laminardb/laminardb", tag = "v0.30.0", default-features = false, features = [
     "api",
 ] }
-# Phase 1 adds laminar-core (same tag) for StreamCheckpointConfig when the
-# config mapping lands; until then it would fail cargo-machete.
+# Same tag as laminar-db: names StreamCheckpointConfig for the config mapping.
+laminar-core = { git = "https://github.com/laminardb/laminardb", tag = "v0.30.0" }
+# Same version family as the core's workspace pin exactly; ipc only — no ffi
+# (that is the Phase 2 zero-copy spike) and no extra format features.
+arrow = { version = "=58.4.0", default-features = false, features = ["ipc"] }
 
 [build-dependencies]
 napi-build = "2"
