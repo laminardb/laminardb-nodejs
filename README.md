@@ -67,7 +67,7 @@ try {
   conn.insert('sensors', [{ ts: 1, device: 'd1', value: 'oops' }])
 } catch (error) {
   if (error.code === 300) {
-    // error.message: column 'value': expected a number, got string
+    // error.message: column 'value': expected a number, got string (row 0)
   }
 }
 ```

@@ -70,11 +70,12 @@ export declare class Connection {
   schema(name: string): Promise<Array<FieldInfo>>
   isClosed(): boolean
   /**
-   * Close the connection: graceful engine shutdown, idempotent, and safe
-   * under concurrent calls — the first caller performs the shutdown, later
-   * calls are no-ops. Using the connection after `close()` fails with
-   * `LAMINAR_101`. The core's shutdown has an internal 45 s deadline, so a
-   * close can reject on timeout rather than hang forever.
+   * Close the connection: graceful engine shutdown. The first caller
+   * performs the shutdown; concurrent callers wait out that attempt as
+   * no-ops. A *failed* shutdown (e.g. the core's internal 45 s deadline)
+   * rejects and un-latches the connection so `close()` can be retried —
+   * idempotent close means converged-to-closed, not one-shot. Using the
+   * connection after a successful close fails with `LAMINAR_101`.
    */
   close(): Promise<void>
 }

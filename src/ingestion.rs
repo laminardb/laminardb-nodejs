@@ -41,11 +41,11 @@ pub fn insert_rows(db: &LaminarDB, source: &str, rows: &[Object]) -> Result<i64>
 /// Ingest an Arrow IPC stream `Buffer` into `source` (all batches in order).
 pub fn insert_ipc(db: &LaminarDB, source: &str, bytes: &[u8]) -> Result<i64> {
     with_source(db, source, |handle| {
-        let expected = handle.schema();
+        let expected = handle.schema().clone();
         let (_, batches) = ipc_to_batches(bytes)?;
-        check_schema(expected, batches.first().map(|b| b.schema()))?;
         let mut rows = 0;
         for batch in batches {
+            check_schema(&expected, Some(batch.schema()))?;
             rows += batch.num_rows();
             handle
                 .push_arrow(batch)
@@ -136,10 +136,12 @@ impl Writer {
     /// Push every batch from an Arrow IPC stream `Buffer`.
     #[napi]
     pub fn write_arrow(&mut self, bytes: Buffer) -> Result<i64> {
+        self.ensure_open()?;
         let (_, batches) = ipc_to_batches(&bytes)?;
-        check_schema(self.handle.schema(), batches.first().map(|b| b.schema()))?;
+        let expected = self.handle.schema().clone();
         let mut rows = 0;
         for batch in batches {
+            check_schema(&expected, Some(batch.schema()))?;
             rows += batch.num_rows();
             self.push(batch)?;
         }

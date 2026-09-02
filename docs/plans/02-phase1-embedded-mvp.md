@@ -1,6 +1,6 @@
 # Plan 02 — Phase 1: embedded MVP
 
-Status: **Planned (2026-09-02)** · Prerequisites: plan 00 (decisions), plan 01 exited
+Status: **Complete (2026-09-02)** · Prerequisites: plan 00 (decisions), plan 01 exited
 Exit: the README quickstart runs from a bare throwaway project against the packed tarball
 (`scripts/bare-quickstart.mjs` green), and `just review`/`just verify` are green.
 Publishing to npm is Phase 3 (plan 04); this phase makes the package publish-ready.
@@ -58,7 +58,9 @@ documentation-as-tests.
 
 ## Task 1.1 — Configuration open
 
-- [x] `open(path?, config?)` (single entry; see §Spike results) native surface:
+- [x] `open(path?, config?)` (single entry; see §Spike results). Deferred from the
+      original list: `deliveryGuarantee` (maps to `LaminarConfig::delivery_guarantee`;
+      lands with Phase 2 — nothing exercises it in embedded mode yet) native surface:
       `#[napi(object)]` config with `storageDir`,
       `checkpoint {intervalMs?, timeoutMs?, dataDir?,     maxNodeDataBytes?}`,
       `bufferSize`, `incrementalEmit`, `objectStoreUrl`, `objectStoreOptions`,
@@ -69,7 +71,9 @@ documentation-as-tests.
       taken from the argument, `config.storageDir` wins if both are given (document).
 - [x] `laminar-core` dependency returns at the same tag (checkpoint config types;
       satisfies machete now).
-- [x] Config validation errors use the 100-range codes with precise messages.
+- [x] Config validation errors use the 100-range codes with precise messages
+      (`checkpoint.maxNodeDataBytes` finite/non-negative; added in the phase-exit review
+      remediation — `into_core` was infallible before).
 
 ## Task 1.2 — Query results
 

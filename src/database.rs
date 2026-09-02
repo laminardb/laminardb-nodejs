@@ -303,17 +303,22 @@ impl Connection {
         self.closed.load(Ordering::Acquire)
     }
 
-    /// Close the connection: graceful engine shutdown, idempotent, and safe
-    /// under concurrent calls — the first caller performs the shutdown, later
-    /// calls are no-ops. Using the connection after `close()` fails with
-    /// `LAMINAR_101`. The core's shutdown has an internal 45 s deadline, so a
-    /// close can reject on timeout rather than hang forever.
+    /// Close the connection: graceful engine shutdown. The first caller
+    /// performs the shutdown; concurrent callers wait out that attempt as
+    /// no-ops. A *failed* shutdown (e.g. the core's internal 45 s deadline)
+    /// rejects and un-latches the connection so `close()` can be retried —
+    /// idempotent close means converged-to-closed, not one-shot. Using the
+    /// connection after a successful close fails with `LAMINAR_101`.
     #[napi]
     pub async fn close(&self) -> Result<()> {
         if self.closed.swap(true, Ordering::AcqRel) {
             return Ok(());
         }
-        self.db.shutdown().await.map_err(map_db_error)
+        if let Err(error) = self.db.shutdown().await {
+            self.closed.store(false, Ordering::Release);
+            return Err(map_db_error(error));
+        }
+        Ok(())
     }
 
     fn ensure_open(&self) -> Result<()> {

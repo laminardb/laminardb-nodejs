@@ -10,6 +10,7 @@ use std::path::PathBuf;
 
 use laminar_core::streaming::StreamCheckpointConfig;
 use laminar_db::LaminarConfig;
+use napi::Error;
 use napi_derive::napi;
 
 const MEMORY: &str = ":memory:";
@@ -58,13 +59,22 @@ impl OpenConfig {
             Some(dir) => config.storage_dir = Some(PathBuf::from(dir)),
         }
         if let Some(checkpoint) = self.checkpoint {
+            let max_node_data_bytes = checkpoint
+                .max_node_data_bytes
+                .map(|bytes| {
+                    if !bytes.is_finite() || bytes < 0.0 {
+                        return Err(config_error(
+                            "checkpoint.maxNodeDataBytes must be a finite non-negative number",
+                        ));
+                    }
+                    Ok(bytes as u64)
+                })
+                .transpose()?;
             config.checkpoint = Some(StreamCheckpointConfig {
                 interval_ms: checkpoint.interval_ms.map(u64::from),
                 timeout_ms: checkpoint.timeout_ms.map(u64::from),
                 data_dir: checkpoint.data_dir.map(PathBuf::from),
-                max_node_data_bytes: checkpoint
-                    .max_node_data_bytes
-                    .map(|bytes| bytes.max(0.0) as u64),
+                max_node_data_bytes,
             });
         }
         if let Some(buffer_size) = self.buffer_size {
@@ -81,4 +91,8 @@ impl OpenConfig {
         }
         Ok(config)
     }
+}
+
+fn config_error(message: &str) -> Error {
+    crate::error::coded_error(100, &format!("invalid configuration: {message}"))
 }

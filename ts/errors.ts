@@ -75,10 +75,14 @@ export function wrapSync<T>(thunk: () => T): T {
   }
 }
 
-/** Await `work`, re-throwing any rejection through {@link toLaminarError}. */
-export async function wrapAsync<T>(work: PromiseLike<T>): Promise<T> {
+/**
+ * Call `work` and await its result, re-throwing both synchronous throws (napi
+ * argument coercion happens before the promise exists) and rejections through
+ * {@link toLaminarError}.
+ */
+export async function wrapAsync<T>(work: () => PromiseLike<T>): Promise<T> {
   try {
-    return await work
+    return await work()
   } catch (error) {
     throw toLaminarError(error)
   }

@@ -9,7 +9,16 @@
 
 import { wrapAsync, wrapSync } from './errors.js'
 
-export * from './errors.js'
+export {
+  LaminarError,
+  LaminarConnectionError,
+  LaminarSchemaError,
+  LaminarIngestionError,
+  LaminarQueryError,
+  LaminarSubscriptionError,
+  LaminarInternalError,
+  toLaminarError,
+} from './errors.js'
 export { tableFrom } from './arrow.js'
 
 /** One column of a result schema; `dataType` is informational. */
@@ -250,13 +259,13 @@ export class Connection {
    * fully collected `result`; SHOW/DESCRIBE return `kind: 'metadata'`.
    */
   execute(sql: string): Promise<ExecuteOutcome> {
-    return wrapAsync(this.#native.execute(sql)).then(mapOutcome)
+    return wrapAsync(() => this.#native.execute(sql)).then(mapOutcome)
   }
 
   /** Execute a query and return its collected result; non-query SQL throws
    * `LaminarQueryError` (400). */
   query(sql: string): Promise<QueryResult> {
-    return wrapAsync(this.#native.query(sql)).then(wrapResult)
+    return wrapAsync(() => this.#native.query(sql)).then(wrapResult)
   }
 
   /** Ingest row objects into a source; returns rows pushed. */
@@ -276,7 +285,7 @@ export class Connection {
 
   /** Start the streaming pipeline (idempotent). */
   start(): Promise<void> {
-    return wrapAsync(this.#native.start())
+    return wrapAsync(() => this.#native.start())
   }
 
   /**
@@ -285,7 +294,7 @@ export class Connection {
    * coordinator only for real pipelines).
    */
   checkpoint(): Promise<CheckpointOutcome> {
-    return wrapAsync(this.#native.checkpoint())
+    return wrapAsync(() => this.#native.checkpoint())
   }
 
   isCheckpointEnabled(): boolean {
@@ -293,24 +302,24 @@ export class Connection {
   }
 
   listSources(): Promise<string[]> {
-    return wrapAsync(this.#native.listSources())
+    return wrapAsync(() => this.#native.listSources())
   }
 
   listStreams(): Promise<string[]> {
-    return wrapAsync(this.#native.listStreams())
+    return wrapAsync(() => this.#native.listStreams())
   }
 
   listSinks(): Promise<string[]> {
-    return wrapAsync(this.#native.listSinks())
+    return wrapAsync(() => this.#native.listSinks())
   }
 
   sourceInfos(): Promise<SourceInfo[]> {
-    return wrapAsync(this.#native.sourceInfos())
+    return wrapAsync(() => this.#native.sourceInfos())
   }
 
   /** Schema of a source; unknown names throw `LaminarSchemaError` (200). */
   schema(name: string): Promise<FieldInfo[]> {
-    return wrapAsync(this.#native.schema(name))
+    return wrapAsync(() => this.#native.schema(name))
   }
 
   isClosed(): boolean {
@@ -319,7 +328,7 @@ export class Connection {
 
   /** Graceful shutdown; idempotent and safe under concurrent calls. */
   close(): Promise<void> {
-    return wrapAsync(this.#native.close())
+    return wrapAsync(() => this.#native.close())
   }
 }
 
@@ -336,7 +345,7 @@ export class LaminarDB {
    * wins over the positional path.
    */
   static open(path?: string, config?: OpenConfig): Promise<Connection> {
-    return wrapAsync(
+    return wrapAsync(() =>
       native.open(path, config as Record<string, unknown> | undefined),
     ).then((connection) => new Connection(connection))
   }
