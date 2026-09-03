@@ -31,18 +31,23 @@ verify:
     pnpm test
 
 # Review gate: verify tooling for the current phase — fmt, clippy, machete,
-# the allows-grep, and prettier over authored JS/TS/MD/JSON.
+# the allows-grep, eslint over authored JS/TS, and prettier.
 review:
     cargo fmt --check
     cargo clippy --all-targets -- -D warnings
     cargo machete
     just allows-grep
+    pnpm run lint
     pnpm run format:check
 
 # Every `#[allow(...)]` in src/ — plain or inside `cfg_attr` — must carry an
 # inline `WHY:` justification.
 allows-grep:
     @! grep -rnE '#\[(cfg_attr\([^)]*,\s*)?allow\(' src/ | grep -v 'WHY:'
+
+# Benchmarks (tinybench); append results to docs/benchmarks.md manually.
+bench: build
+    pnpm run bench
 
 # Cold-consumer proof: pack the tarball, install into a throwaway project,
 # stage the local binary, run the README quickstart (plan 02 Task 1.6).

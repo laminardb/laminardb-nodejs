@@ -21,6 +21,11 @@ laminar-db = { git = "https://github.com/laminardb/laminardb", tag = "v0.30.0", 
 ] }
 # Same tag as laminar-db: names StreamCheckpointConfig for the config mapping.
 laminar-core = { git = "https://github.com/laminardb/laminardb", tag = "v0.30.0" }
+# Same tokio-util family the core uses for CancellationToken.
+tokio-util = "0.7"
+# Channels/mutexes for the subscription reader tasks; the runtime itself is
+# napi's (we only need sync primitives and select!).
+tokio = { version = "1", features = ["sync", "macros"] }
 # Same version family as the core's workspace pin exactly; ipc only — no ffi
 # (that is the Phase 2 zero-copy spike) and no extra format features.
 arrow = { version = "=58.4.0", default-features = false, features = ["ipc"] }
@@ -31,7 +36,8 @@ napi-build = "2"
 [features]
 # Enables napi's no-op backend so `cargo test` links without a Node host
 # providing the Node-API symbols. Test-only; never enabled in shipped builds.
-napi-noop = ["napi/noop"]
+# tokio/rt stands in for napi's runtime spawn shim under the noop backend.
+napi-noop = ["napi/noop", "tokio/rt"]
 
 [profile.release]
 lto = true

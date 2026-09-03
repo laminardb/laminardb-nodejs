@@ -1988,6 +1988,8 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]

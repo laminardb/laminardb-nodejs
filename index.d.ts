@@ -68,6 +68,48 @@ export declare class Connection {
   sourceInfos(): Promise<Array<SourceInfoObject>>
   /** Schema of a source as field info; unknown names reject `LAMINAR_200`. */
   schema(name: string): Promise<Array<FieldInfo>>
+  /**
+   * Subscribe to a named stream or materialized view (pull style):
+   * `nextFrame()` per frame, terminal failures reject once.
+   * `filter` is an optional SQL row filter; `fromEpoch` replays entries
+   * after that committed checkpoint epoch (rejects if unretained).
+   * Bare sources are not subscribable (core rule, `LAMINAR` 4xx/5xx).
+   */
+  subscribe(name: string, filter?: string | undefined | null, fromEpoch?: number | undefined | null): Promise<Subscription>
+  /**
+   * Subscribe push style: frames are delivered to `onData(frame)` one at a
+   * time (awaited per delivery — a slow consumer backpressures instead of
+   * queueing). `onError(code, message)` then `onClose()` mark terminal
+   * failures; open failures also surface there. Callbacks never fire
+   * after `close()` resolves.
+   */
+  subscribeWith(name: string, filter: string | undefined | null, fromEpoch: number | undefined | null, onData: DataCallback, onError: ErrorCallback, onClose: CloseCallback): PushSubscription
+  /**
+   * Execute a query and stream its batches on demand instead of
+   * collecting; non-query SQL rejects with `LAMINAR_400`.
+   */
+  streamQuery(sql: string): Promise<QueryStream>
+  /**
+   * Cancel a query by the id reported by `streamQuery().queryId`;
+   * unknown ids reject.
+   */
+  cancelQuery(queryId: number): Promise<void>
+  /** Aggregate pipeline counters. */
+  metrics(): Promise<PipelineMetricsObject>
+  /** Counters for one source; unknown names reject `LAMINAR_200`. */
+  sourceMetrics(name: string): Promise<SourceMetricsObject>
+  /** Counters for every source. */
+  allSourceMetrics(): Promise<Array<SourceMetricsObject>>
+  /** Counters for one stream; unknown names reject `LAMINAR_200`. */
+  streamMetrics(name: string): Promise<StreamMetricsObject>
+  /** Counters for every stream. */
+  allStreamMetrics(): Promise<Array<StreamMetricsObject>>
+  /** Engine lifecycle state name. */
+  pipelineState(): Promise<string>
+  /** Minimum event-time watermark across sources (epoch milliseconds). */
+  pipelineWatermark(): Promise<number>
+  /** Total events the pipeline has processed. */
+  totalEventsProcessed(): Promise<number>
   isClosed(): boolean
   /**
    * Close the connection: graceful engine shutdown. The first caller
@@ -102,6 +144,21 @@ export declare class ExecuteOutcome {
   get result(): QueryResult | null
 }
 
+/**
+ * A push-based subscription: frames are delivered to `onData` one at a time
+ * (each delivery is awaited, so a slow consumer applies backpressure
+ * instead of growing a queue). `close()` stops delivery and resolves only
+ * after the reader has stopped — no callbacks fire after it returns.
+ */
+export declare class PushSubscription {
+  isActive(): boolean
+  /**
+   * Stop delivery and wait for the reader to finish. Idempotent; the
+   * first caller performs the wait.
+   */
+  close(): Promise<void>
+}
+
 /** A fully collected query result: schema plus all output batches. */
 export declare class QueryResult {
   schema(): Array<FieldInfo>
@@ -113,6 +170,65 @@ export declare class QueryResult {
   toIPC(): Buffer
   /** All rows as objects, batch order preserved. */
   toArray(): Array<object>
+}
+
+/**
+ * A streaming query: batches arrive on demand instead of one collected
+ * result (plan 03 Task 2.3).
+ *
+ * `nextBatch()` resolves `null` at end-of-stream; `cancel()` is idempotent
+ * and wakes a pending `nextBatch` with `null`. Dropping the stream cancels
+ * it (the underlying query subscription closes with it).
+ */
+export declare class QueryStream {
+  /** Output schema of the query. */
+  schema(): Array<FieldInfo>
+  /** The query handle id (usable with `Connection.cancelQuery`). */
+  queryId(): number
+  /** Wait for the next batch; `null` at end-of-stream or after `cancel()`. */
+  nextBatch(): Promise<ArrowBatch | null>
+  /** Cancel the query (idempotent); a pending `nextBatch` resolves `null`. */
+  cancel(): void
+}
+
+/**
+ * A pull-based framed subscription to a named stream or materialized view.
+ *
+ * `nextFrame()` resolves one frame at a time (natural backpressure); `null`
+ * means end-of-stream; terminal failures reject once (`LAMINAR_502` for
+ * lag, `LAMINAR_500` otherwise) and end the subscription. `cancel()` is
+ * idempotent and wakes a pending `nextFrame` with `null`.
+ */
+export declare class Subscription {
+  /** Output schema of the subscribed object. */
+  schema(): Array<FieldInfo>
+  /**
+   * Wait for the next frame; `null` on end-of-stream or after `cancel()`.
+   * Terminal failures reject with `LAMINAR_502` (lag) or `LAMINAR_500`.
+   */
+  nextFrame(): Promise<SubscriptionFrame | null>
+  isActive(): boolean
+  /**
+   * Stop the subscription (idempotent); a pending `nextFrame` resolves
+   * `null`.
+   */
+  cancel(): void
+}
+
+/**
+ * One frame from a subscription: `kind` is `'data'` (carries `batch`) or
+ * `'barrier'` (checkpoint progress).
+ */
+export declare class SubscriptionFrame {
+  /** `'data'` or `'barrier'`. */
+  get kind(): string
+  /** The data batch; `undefined` for barriers. */
+  get batch(): ArrowBatch | null
+  /** Portal-local delivery sequence (neither durable nor cluster-global). */
+  get sequence(): number
+  get epoch(): number | null
+  get checkpointId(): number | null
+  get throughSequence(): number | null
 }
 
 /**
@@ -143,6 +259,18 @@ export declare class Writer {
   isBackpressured(): boolean
   /** Idempotent close; writes after close reject with `LAMINAR_301`. */
   close(): void
+}
+
+/**
+ * The error payload for push-subscription `onError` callbacks. An object
+ * rather than a spread pair: threadsafe calls deliver exactly one JS
+ * argument per message.
+ */
+export interface CallbackError {
+  /** Core error code (e.g. 500, 502). */
+  code: number
+  /** Message including the `[LAMINAR_<code>]` prefix. */
+  message: string
 }
 
 /** Checkpointing options; an empty object enables manual checkpoints only. */
@@ -214,11 +342,51 @@ export interface OpenConfig {
   objectStoreOptions?: Record<string, string>
 }
 
+/** Aggregate pipeline counters. */
+export interface PipelineMetricsObject {
+  totalEventsIngested: number
+  totalEventsEmitted: number
+  totalEventsDropped: number
+  totalCycles: number
+  totalBatches: number
+  uptimeMs: number
+  /** Engine lifecycle state name (e.g. `Running`). */
+  state: string
+  sourceCount: number
+  streamCount: number
+  sinkCount: number
+  /** Minimum watermark across all sources (epoch milliseconds). */
+  pipelineWatermark: number
+  mvUpdates: number
+  mvBytesStored: number
+}
+
 /** One registered source: name, schema, watermark column. */
 export interface SourceInfoObject {
   name: string
   schema: Array<FieldInfo>
   watermarkColumn?: string
+}
+
+/** Counters for one registered source. */
+export interface SourceMetricsObject {
+  name: string
+  totalEvents: number
+  pending: number
+  capacity: number
+  isBackpressured: boolean
+  /** Event-time watermark (epoch milliseconds). */
+  watermark: number
+  /** Buffer utilization, 0.0..1.0. */
+  utilization: number
+}
+
+/** Counters for one stream. */
+export interface StreamMetricsObject {
+  name: string
+  totalEvents: number
+  /** Defining SQL, when known. */
+  sql?: string
 }
 
 /** Binding and pinned-core version, e.g. `"0.30.0-alpha.1 (core v0.30.0)"`. */

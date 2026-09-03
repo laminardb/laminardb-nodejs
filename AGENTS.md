@@ -39,7 +39,8 @@ just install   # pnpm install
 just build     # napi build --platform (debug) + regenerate index.js/index.d.ts
 just test      # build + vitest suite against the real addon
 just verify    # fmt + clippy -D warnings + rust tests (napi-noop backend) + build + vitest
-just review    # fmt + clippy -D warnings + cargo machete + allows-grep + prettier --check
+just review    # fmt + clippy -D warnings + cargo machete + allows-grep + eslint + prettier
+just bench     # tinybench suite (docs/benchmarks.md)
 ```
 
 Rust unit tests run as `cargo test --features napi-noop` — the no-op backend lets the test

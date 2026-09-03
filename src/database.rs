@@ -11,7 +11,14 @@ use napi_derive::napi;
 use crate::config::OpenConfig;
 use crate::error::{coded_error, connection_closed_error, map_db_error};
 use crate::ingestion::{self, Writer};
-use crate::query::{field_infos, FieldInfo, QueryResult};
+use crate::query::{field_infos, FieldInfo, QueryResult, QueryStream};
+use crate::subscription::{
+    spawn_push_subscription, CloseCallback, DataCallback, ErrorCallback, PushSubscription,
+    Subscription,
+};
+use crate::telemetry::{
+    PipelineMetricsObject, SourceMetricsObject, StreamMetricsObject, Telemetry,
+};
 
 /// One executed statement's outcome, discriminated by the `kind` getter:
 /// `ddl` | `rows-affected` | `query` | `metadata`.
@@ -296,6 +303,144 @@ impl Connection {
             .find(|source| source.name == name)
             .ok_or_else(|| coded_error(200, &format!("table not found: '{name}'")))?;
         Ok(field_infos(&source.schema))
+    }
+
+    /// Subscribe to a named stream or materialized view (pull style):
+    /// `nextFrame()` per frame, terminal failures reject once.
+    /// `filter` is an optional SQL row filter; `fromEpoch` replays entries
+    /// after that committed checkpoint epoch (rejects if unretained).
+    /// Bare sources are not subscribable (core rule, `LAMINAR` 4xx/5xx).
+    #[napi]
+    pub async fn subscribe(
+        &self,
+        name: String,
+        filter: Option<String>,
+        from_epoch: Option<i64>,
+    ) -> Result<Subscription> {
+        self.ensure_open()?;
+        Subscription::open(
+            &self.db,
+            &name,
+            filter.as_deref(),
+            from_epoch.map(|epoch| u64::try_from(epoch).unwrap_or(u64::MAX)),
+        )
+        .await
+    }
+
+    /// Subscribe push style: frames are delivered to `onData(frame)` one at a
+    /// time (awaited per delivery — a slow consumer backpressures instead of
+    /// queueing). `onError(code, message)` then `onClose()` mark terminal
+    /// failures; open failures also surface there. Callbacks never fire
+    /// after `close()` resolves.
+    #[napi]
+    pub fn subscribe_with(
+        &self,
+        name: String,
+        filter: Option<String>,
+        from_epoch: Option<i64>,
+        on_data: DataCallback,
+        on_error: ErrorCallback,
+        on_close: CloseCallback,
+    ) -> Result<PushSubscription> {
+        self.ensure_open()?;
+        spawn_push_subscription(
+            std::sync::Arc::clone(&self.db),
+            name,
+            filter,
+            from_epoch.map(|epoch| u64::try_from(epoch).unwrap_or(u64::MAX)),
+            on_data,
+            on_error,
+            on_close,
+        )
+    }
+
+    /// Execute a query and stream its batches on demand instead of
+    /// collecting; non-query SQL rejects with `LAMINAR_400`.
+    #[napi]
+    pub async fn stream_query(&self, sql: String) -> Result<QueryStream> {
+        if self.is_closed() {
+            return Err(connection_closed_error());
+        }
+        let result = self.db.execute(&sql).await.map_err(map_db_error)?;
+        match result {
+            ExecuteResult::Query(handle) => QueryStream::from_handle(handle),
+            ExecuteResult::Ddl(info) => Err(coded_error(
+                400,
+                &format!("not a query: {} {}", info.statement_type, info.object_name),
+            )),
+            ExecuteResult::RowsAffected(rows) => Err(coded_error(
+                400,
+                &format!("not a query: statement affected {rows} rows"),
+            )),
+            ExecuteResult::Metadata(_) => Err(coded_error(
+                400,
+                "metadata statement; use execute() for SHOW/DESCRIBE",
+            )),
+        }
+    }
+
+    /// Cancel a query by the id reported by `streamQuery().queryId`;
+    /// unknown ids reject.
+    #[napi]
+    pub async fn cancel_query(&self, query_id: i64) -> Result<()> {
+        self.ensure_open()?;
+        Telemetry::cancel_query(&self.db, u64::try_from(query_id).unwrap_or(u64::MAX)).await
+    }
+
+    /// Aggregate pipeline counters.
+    #[napi]
+    pub async fn metrics(&self) -> Result<PipelineMetricsObject> {
+        self.ensure_open_async().await?;
+        Telemetry::metrics(&self.db).await
+    }
+
+    /// Counters for one source; unknown names reject `LAMINAR_200`.
+    #[napi]
+    pub async fn source_metrics(&self, name: String) -> Result<SourceMetricsObject> {
+        self.ensure_open_async().await?;
+        Telemetry::source_metrics(&self.db, &name).await
+    }
+
+    /// Counters for every source.
+    #[napi]
+    pub async fn all_source_metrics(&self) -> Result<Vec<SourceMetricsObject>> {
+        self.ensure_open_async().await?;
+        Telemetry::all_source_metrics(&self.db).await
+    }
+
+    /// Counters for one stream; unknown names reject `LAMINAR_200`.
+    #[napi]
+    pub async fn stream_metrics(&self, name: String) -> Result<StreamMetricsObject> {
+        self.ensure_open_async().await?;
+        Telemetry::stream_metrics(&self.db, &name).await
+    }
+
+    /// Counters for every stream.
+    #[napi]
+    pub async fn all_stream_metrics(&self) -> Result<Vec<StreamMetricsObject>> {
+        self.ensure_open_async().await?;
+        Telemetry::all_stream_metrics(&self.db).await
+    }
+
+    /// Engine lifecycle state name.
+    #[napi]
+    pub async fn pipeline_state(&self) -> Result<String> {
+        self.ensure_open_async().await?;
+        Telemetry::pipeline_state(&self.db).await
+    }
+
+    /// Minimum event-time watermark across sources (epoch milliseconds).
+    #[napi]
+    pub async fn pipeline_watermark(&self) -> Result<i64> {
+        self.ensure_open_async().await?;
+        Telemetry::pipeline_watermark(&self.db).await
+    }
+
+    /// Total events the pipeline has processed.
+    #[napi]
+    pub async fn total_events_processed(&self) -> Result<i64> {
+        self.ensure_open_async().await?;
+        Telemetry::total_events_processed(&self.db).await
     }
 
     #[napi]

@@ -6,6 +6,27 @@ pinned core (plan 00 D4, `CORE_PIN.md`).
 
 ## [Unreleased]
 
+### Added — Phase 2: subscriptions, hardening, platform breadth
+
+- Framed subscriptions over `SubscriptionPortal`: `subscribe(name, {filter, fromEpoch})`
+  with per-frame `nextFrame()`, terminal failures as 502 (lag) / 500, idempotent
+  `cancel()` that wakes pending reads, and `Symbol.asyncIterator` in the TypeScript layer.
+- Push subscriptions: `subscribeWith(name, {onData, onError, onClose})` on weak threadsafe
+  functions with awaited per-frame delivery (backpressure, not queueing); `close()`
+  resolves after the reader stops — no callbacks after it.
+- Streaming queries: `streamQuery(sql)` async-iterable over batches, with
+  `cancelQuery(id)`; the reader owns the `QueryHandle` (dropping it early truncates
+  results — core semantics, recorded in plan 03).
+- Telemetry: `metrics`, `sourceMetrics`/`allSourceMetrics`,
+  `streamMetrics`/`allStreamMetrics`, `pipelineState`, `pipelineWatermark`,
+  `totalEventsProcessed`.
+- The TypeScript layer converts `Date` instances in rows to epoch milliseconds
+  automatically.
+- CI breadth: Windows in the verify matrix and a musl cross-check; ESLint
+  (typescript-eslint, TS 6) in the review gate; nightly subscription soak and benchmark
+  artifact; benchmark baseline recorded in `docs/benchmarks.md` with the zero-copy Arrow
+  decision (declined at this baseline).
+
 ### Added — Phase 1: embedded MVP
 
 - Configuration-based open: `LaminarDB.open(path?, config?)` with `:memory:` sugar,

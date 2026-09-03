@@ -1,0 +1,8 @@
+2026-09-03T06:51:55.454Z
+open + close (in-memory): 3402 ops/s, mean 0.323ms, p99 0.516ms
+insert 1k rows (row objects): 1337 ops/s, mean 0.751ms, p99 0.941ms
+insert 1k rows (Arrow IPC): 52897 ops/s, mean 0.019ms, p99 0.039ms
+query 10k rows -> toArray(): 131 ops/s, mean 7.777ms, p99 8.804ms
+query 10k rows -> toIPC(): 418 ops/s, mean 2.401ms, p99 2.867ms
+apache-arrow tableFromIPC of 1k-row result: 380 ops/s, mean 2.645ms, p99 3.129ms
+subscription: insert -> first data frame: 4416 ops/s, mean 0.254ms, p99 0.604ms

@@ -10,14 +10,7 @@
  */
 
 import { execSync } from 'node:child_process'
-import {
-  cpSync,
-  mkdtempSync,
-  rmSync,
-  readdirSync,
-  existsSync,
-  writeFileSync,
-} from 'node:fs'
+import { cpSync, mkdtempSync, rmSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir, platform, arch } from 'node:os'
 import { join, resolve } from 'node:path'
 

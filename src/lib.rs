@@ -13,8 +13,23 @@ mod database;
 mod error;
 mod ingestion;
 mod query;
+mod subscription;
+mod telemetry;
 
 use napi_derive::napi;
+
+/// Spawn onto the module's Tokio runtime. napi's own `spawn` helper is
+/// compiled out under the noop test backend; the shim keeps test builds
+/// linking (it is never called there — unit tests never start readers).
+#[cfg(not(feature = "napi-noop"))]
+pub(crate) use napi::bindgen_prelude::spawn;
+#[cfg(feature = "napi-noop")]
+pub(crate) fn spawn<F>(fut: F) -> tokio::task::JoinHandle<F::Output>
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
+    tokio::spawn(fut)
+}
 
 /// Pinned core release this binding is built against.
 ///

@@ -1,7 +1,7 @@
 {
   "name": "@laminardb/node",
   "version": "0.30.0-alpha.1",
-  "description": "Embedded streaming SQL for Node.js \u2014 official LaminarDB native binding",
+  "description": "Embedded streaming SQL for Node.js — official LaminarDB native binding",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -29,7 +29,9 @@
     "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "build:ts": "tsc"
+    "build:ts": "tsc",
+    "lint": "eslint .",
+    "bench": "node benchmarks/bench.mjs"
   },
   "engines": {
     "node": ">= 20"
@@ -48,11 +50,15 @@
     "node-addon"
   ],
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@napi-rs/cli": "^3.8.6",
     "@types/node": "^26.4.1",
     "apache-arrow": "^21.2.0",
+    "eslint": "^10.9.1",
     "prettier": "^3.9.6",
-    "typescript": "^7.0.2",
+    "tinybench": "^6.1.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.69.0",
     "vitest": "^4.1.11"
   }
 }

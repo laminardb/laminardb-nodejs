@@ -55,6 +55,26 @@ checkpoint coordinator only for real pipelines).
 - `conn.writer(source)` — streaming writer with `writeRows`, `watermark`, and backpressure
   visibility (`pending` / `capacity` / `isBackpressured`).
 
+## Subscriptions
+
+Streams and materialized views are consumable frame by frame — async-iterable first:
+
+```js
+const sub = await conn.subscribe('sensor_rollup')
+for await (const frame of sub) {
+  if (frame.kind === 'data') console.log(frame.batch.toArray())
+  else console.log('checkpoint barrier', frame.checkpointId)
+}
+```
+
+Push style delivers awaited frames to handlers (a slow handler backpressures instead of
+queueing): `conn.subscribeWith('sensor_rollup', { onData, onError, onClose })`. Streaming
+queries work the same way: `for await (const batch of conn.streamQuery(sql))`.
+
+Telemetry (`metrics()`, `sourceMetrics()`, `pipelineState()`, `pipelineWatermark()`,
+`totalEventsProcessed()`) and query cancellation (`cancelQuery(id)`) round out the runtime
+surface. Benchmark baseline: `docs/benchmarks.md`.
+
 ## Errors
 
 Every failure throws a `LaminarError` subclass carrying the core's numeric `code`:

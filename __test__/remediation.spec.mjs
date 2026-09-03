@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  LaminarDB,
-  LaminarError,
-  LaminarIngestionError,
-  toLaminarError,
-} from '../dist/index.js'
+import { LaminarDB, LaminarError, toLaminarError } from '../dist/index.js'
+import { open as openNative } from '../index.js'
 
 // The public layer strips the [LAMINAR_<n>] prefix and throws typed errors;
 // raw-prefix assertions belong to the native-seam suites (phase1/smoke).
@@ -37,7 +33,7 @@ describe('numeric fidelity', () => {
     )
     expect(() => conn.insert('b', [{ id: 2n ** 63n + 100n }])).toThrow(/64-bit signed/)
     // 2^63 as a plain number must be rejected (would silently saturate).
-    expect(() => conn.insert('b', [{ id: 9223372036854775808 }])).toThrow(/BigInt/)
+    expect(() => conn.insert('b', [{ id: 2 ** 63 }])).toThrow(/BigInt/)
     const rows = await conn.query('SELECT * FROM b').then((r) => r.toArray())
     expect(rows).toHaveLength(0) // nothing was admitted
     await conn.close()
@@ -49,7 +45,7 @@ describe('numeric fidelity', () => {
     await conn.start()
     expect(() => conn.insert('t', [{ ts: NaN, day: 0 }])).toThrow(/finite/)
     expect(() => conn.insert('t', [{ ts: 0, day: Infinity }])).toThrow(/finite/)
-    expect(() => conn.insert('t', [{ ts: 9007199254740993, day: 0 }])).toThrow(/BigInt/)
+    expect(() => conn.insert('t', [{ ts: 2 ** 53 + 1, day: 0 }])).toThrow(/BigInt/)
     await conn.close()
   })
 
@@ -93,13 +89,21 @@ describe('ingestion failure paths', () => {
     await conn.close()
   })
 
-  it('Date objects get the helpful conversion error', async () => {
-    const conn = await LaminarDB.open()
+  it('Date objects get the helpful conversion error (native seam)', async () => {
+    const conn = await openNative()
     await conn.execute('CREATE SOURCE s (ts TIMESTAMP)')
     await conn.start()
     expect(() => conn.insert('s', [{ ts: new Date(0) }])).toThrow(
       /pass Dates as milliseconds/,
     )
+    await conn.close()
+  })
+
+  it('the TypeScript layer converts Date objects instead', async () => {
+    const conn = await LaminarDB.open()
+    await conn.execute('CREATE SOURCE s (ts TIMESTAMP)')
+    await conn.start()
+    expect(() => conn.insert('s', [{ ts: new Date(0) }])).not.toThrow()
     await conn.close()
   })
 
