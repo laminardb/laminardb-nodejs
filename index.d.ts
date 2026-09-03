@@ -70,20 +70,25 @@ export declare class Connection {
   schema(name: string): Promise<Array<FieldInfo>>
   /**
    * Subscribe to a named stream or materialized view (pull style):
-   * `nextFrame()` per frame, terminal failures reject once.
-   * `filter` is an optional SQL row filter; `fromEpoch` replays entries
-   * after that committed checkpoint epoch (rejects if unretained).
-   * Bare sources are not subscribable (core rule, `LAMINAR` 4xx/5xx).
+   * `nextFrame()` per frame, terminal failures reject once (502 lag /
+   * 500 otherwise). Frames already queued when `cancel()` fires are
+   * drained first, then the next call resolves `null`. `filter` is an
+   * optional SQL row filter; `fromEpoch` replays entries after that
+   * committed checkpoint epoch (rejects if unretained). Bare sources are
+   * not subscribable (core rule, surfaces as `LAMINAR_200`).
    */
   subscribe(name: string, filter?: string | undefined | null, fromEpoch?: number | undefined | null): Promise<Subscription>
   /**
-   * Subscribe push style: frames are delivered to `onData(frame)` one at a
-   * time (awaited per delivery — a slow consumer backpressures instead of
-   * queueing). `onError(code, message)` then `onClose()` mark terminal
-   * failures; open failures also surface there. Callbacks never fire
-   * after `close()` resolves.
+   * Subscribe push style: frames are delivered to `onData(frame)` one at
+   * a time, and the reader awaits each delivery's returned promise — a
+   * slow handler backpressures the stream (the TypeScript facade makes
+   * sync handlers behave identically). `onError(error)` fires once on
+   * terminal failures or handler rejections, always followed by exactly
+   * one `onClose()`; open failures surface the same way. Callbacks never
+   * fire after `close()` resolves (the first caller waits for the reader;
+   * a concurrent second caller may resolve marginally earlier).
    */
-  subscribeWith(name: string, filter: string | undefined | null, fromEpoch: number | undefined | null, onData: DataCallback, onError: ErrorCallback, onClose: CloseCallback): PushSubscription
+  subscribeWith(name: string, filter: string | undefined | null, fromEpoch: number | undefined | null, onData: (frame: SubscriptionFrame) => Promise<void>, onError: (error: CallbackError) => void, onClose: () => void): PushSubscription
   /**
    * Execute a query and stream its batches on demand instead of
    * collecting; non-query SQL rejects with `LAMINAR_400`.

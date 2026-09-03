@@ -306,10 +306,12 @@ impl Connection {
     }
 
     /// Subscribe to a named stream or materialized view (pull style):
-    /// `nextFrame()` per frame, terminal failures reject once.
-    /// `filter` is an optional SQL row filter; `fromEpoch` replays entries
-    /// after that committed checkpoint epoch (rejects if unretained).
-    /// Bare sources are not subscribable (core rule, `LAMINAR` 4xx/5xx).
+    /// `nextFrame()` per frame, terminal failures reject once (502 lag /
+    /// 500 otherwise). Frames already queued when `cancel()` fires are
+    /// drained first, then the next call resolves `null`. `filter` is an
+    /// optional SQL row filter; `fromEpoch` replays entries after that
+    /// committed checkpoint epoch (rejects if unretained). Bare sources are
+    /// not subscribable (core rule, surfaces as `LAMINAR_200`).
     #[napi]
     pub async fn subscribe(
         &self,
@@ -327,20 +329,23 @@ impl Connection {
         .await
     }
 
-    /// Subscribe push style: frames are delivered to `onData(frame)` one at a
-    /// time (awaited per delivery — a slow consumer backpressures instead of
-    /// queueing). `onError(code, message)` then `onClose()` mark terminal
-    /// failures; open failures also surface there. Callbacks never fire
-    /// after `close()` resolves.
+    /// Subscribe push style: frames are delivered to `onData(frame)` one at
+    /// a time, and the reader awaits each delivery's returned promise — a
+    /// slow handler backpressures the stream (the TypeScript facade makes
+    /// sync handlers behave identically). `onError(error)` fires once on
+    /// terminal failures or handler rejections, always followed by exactly
+    /// one `onClose()`; open failures surface the same way. Callbacks never
+    /// fire after `close()` resolves (the first caller waits for the reader;
+    /// a concurrent second caller may resolve marginally earlier).
     #[napi]
     pub fn subscribe_with(
         &self,
         name: String,
         filter: Option<String>,
         from_epoch: Option<i64>,
-        on_data: DataCallback,
-        on_error: ErrorCallback,
-        on_close: CloseCallback,
+        #[napi(ts_arg_type = "(frame: SubscriptionFrame) => Promise<void>")] on_data: DataCallback,
+        #[napi(ts_arg_type = "(error: CallbackError) => void")] on_error: ErrorCallback,
+        #[napi(ts_arg_type = "() => void")] on_close: CloseCallback,
     ) -> Result<PushSubscription> {
         self.ensure_open()?;
         spawn_push_subscription(

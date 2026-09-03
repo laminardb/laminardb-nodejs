@@ -1,7 +1,7 @@
 {
   "name": "@laminardb/node",
   "version": "0.30.0-alpha.1",
-  "description": "Embedded streaming SQL for Node.js — official LaminarDB native binding",
+  "description": "Embedded streaming SQL for Node.js \u2014 official LaminarDB native binding",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -60,5 +60,9 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.69.0",
     "vitest": "^4.1.11"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

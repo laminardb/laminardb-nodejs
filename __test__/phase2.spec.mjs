@@ -79,13 +79,17 @@ describe('phase 2 — push subscription', () => {
     const frames = []
     const errors = []
     let closed = false
+    let closeCount = 0
     const sub = conn.subscribeWith(
       'rollup',
       null,
       null,
-      (frame) => frames.push(frame),
+      async (frame) => {
+        frames.push(frame)
+      },
       (error) => errors.push([error.code, error.message]),
       () => {
+        closeCount += 1
         closed = true
       },
     )
@@ -99,6 +103,7 @@ describe('phase 2 — push subscription', () => {
     await sub.close()
     await sub.close() // idempotent
     expect(closed).toBe(true)
+    expect(closeCount).toBe(1) // onClose is a one-shot
     const delivered = frames.length
     conn.insert('sensors', [{ ts: 2, device: 'd2', value: 4 }])
     await new Promise((resolve) => setTimeout(resolve, 200))
@@ -111,20 +116,90 @@ describe('phase 2 — push subscription', () => {
     const conn = await pipeline()
     const errors = []
     let closed = false
+    let closeCount = 0
     const sub = conn.subscribeWith(
       'missing-stream',
       null,
       null,
-      () => {},
+      async () => {},
       (error) => errors.push([error.code, error.message]),
       () => {
+        closeCount += 1
         closed = true
       },
     )
     expect(await until(() => closed, { deadline: DEADLINE_MS })).toBe(true)
     expect(errors.length).toBe(1)
     expect(String(errors[0][1])).toMatch(/missing-stream|not found|not subscribable/i)
-    expect(sub.isActive()).toBe(true) // handle reports engine state, not delivery
+    await sub.close()
+    expect(closeCount).toBe(1) // exactly one onClose on the open-failure path
+    await conn.close()
+  })
+})
+
+describe('phase 2 — terminal failures', () => {
+  it('pull nextFrame rejects once with LAMINAR_500 when the pipeline stops', async () => {
+    const conn = await pipeline()
+    const sub = await conn.subscribe('rollup')
+    await conn.close()
+    await expect(sub.nextFrame()).rejects.toThrow(/\[LAMINAR_500\]/)
+    expect(await sub.nextFrame()).toBeNull()
+  })
+
+  it('push delivers onError(500) then exactly one onClose when the pipeline stops', async () => {
+    const conn = await pipeline()
+    const errors = []
+    let closeCount = 0
+    const sub = conn.subscribeWith(
+      'rollup',
+      null,
+      null,
+      async () => {},
+      (error) => errors.push(error),
+      () => {
+        closeCount += 1
+      },
+    )
+    await conn.close()
+    const end = Date.now() + DEADLINE_MS
+    while (closeCount === 0 && Date.now() < end) {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(errors.length).toBe(1)
+    expect(errors[0].code).toBe(500)
+    expect(closeCount).toBe(1)
+    await sub.close()
+  })
+
+  it('async handler settlement backpressures delivery', async () => {
+    const conn = await pipeline()
+    let inFlight = 0
+    let maxInFlight = 0
+    let deliveries = 0
+    const sub = conn.subscribeWith(
+      'rollup',
+      null,
+      null,
+      async () => {
+        inFlight += 1
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        await new Promise((resolve) => setTimeout(resolve, 150))
+        deliveries += 1
+        inFlight -= 1
+      },
+      () => {},
+      () => {},
+    )
+    // Frames arrive per cycle; keep inserting until the slow handler has
+    // settled at least two deliveries. If dispatch did not await
+    // settlement, the 150 ms handler would overlap (maxInFlight > 1).
+    const end = Date.now() + DEADLINE_MS
+    while (deliveries < 2 && Date.now() < end) {
+      conn.insert('sensors', [{ ts: Date.now() % 1_000_000, device: 'd1', value: 1 }])
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    }
+    expect(deliveries).toBeGreaterThanOrEqual(2)
+    expect(maxInFlight).toBe(1) // deliveries await settlement, not dispatch
     await sub.close()
     await conn.close()
   })
@@ -171,11 +246,11 @@ describe('phase 2 — telemetry', () => {
     expect(
       await until(async () => (await conn.sourceMetrics('sensors')).totalEvents > 0),
     ).toBe(true)
+    expect(await until(async () => (await conn.totalEventsProcessed()) > 0)).toBe(true)
     const metrics = await conn.metrics()
     expect(metrics.state).toBe('Running')
     expect(metrics.sourceCount).toBe(1)
     expect(metrics.streamCount).toBe(1)
-    expect(await conn.totalEventsProcessed()).toBeGreaterThan(0)
     await expect(conn.sourceMetrics('missing')).rejects.toThrow(/source not found/)
     const streamMetrics = await conn.streamMetrics('rollup')
     expect(streamMetrics.name).toBe('rollup')

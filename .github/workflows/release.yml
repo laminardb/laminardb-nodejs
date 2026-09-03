@@ -1,0 +1,205 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Stop before publishing (build + assemble + test only)'
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate:
+    name: validate (version + pin gates)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.versions.outputs.binding }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Version and pin parity (plan 04 gates)
+        id: versions
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then TAG="${{ github.sha }}"; fi
+          CARGO_V=$(grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          NPM_V=$(node -p "require('./package.json').version")
+          CORE_TAG=$(grep -m1 'tag = "v' Cargo.toml | sed 's/.*tag = "\(v[0-9.]*\)".*/\1/')
+          CORE_RUST=$(sed -n 's/^pub const CORE_PIN_TAG: &str = "\(.*\)";/\1/p' src/lib.rs)
+          echo "tag=$TAG cargo=$CARGO_V npm=$NPM_V core=$CORE_TAG rust_pin=$CORE_RUST"
+          test "$TAG" = "$CARGO_V" || (echo "tag != Cargo.toml" && exit 1)
+          test "$TAG" = "$NPM_V" || (echo "tag != package.json" && exit 1)
+          test "v$TAG" = "$CORE_TAG" || (echo "tag != pinned core tag" && exit 1)
+          test "$CORE_TAG" = "$CORE_RUST" || (echo "Cargo pin != CORE_PIN_TAG" && exit 1)
+          grep -q "## \[.*$TAG" CHANGELOG.md || (echo "CHANGELOG entry missing" && exit 1)
+          for f in npm/*/package.json; do
+            V=$(node -p "require('./$f').version")
+            test "$TAG" = "$V" || (echo "$f version mismatch: $V" && exit 1)
+          done
+          echo "binding=$TAG" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build ${{ matrix.target }}
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-apple-darwin, host: macos-latest }
+          - { target: aarch64-apple-darwin, host: macos-latest, cross: true }
+          - { target: x86_64-unknown-linux-gnu, host: ubuntu-latest }
+          - { target: aarch64-unknown-linux-gnu, host: ubuntu-24.04-arm }
+          - { target: x86_64-unknown-linux-musl, host: ubuntu-latest, zig: true }
+          - { target: aarch64-unknown-linux-musl, host: ubuntu-24.04-arm, zig: true }
+          - { target: x86_64-pc-windows-msvc, host: windows-latest }
+    runs-on: ${{ matrix.host }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - name: Install cross toolchain
+        if: matrix.zig
+        run: pip install cargo-zigbuild
+      # GitHub retired x86_64 macOS runners: cross from arm64 (the Java
+      # release matrix does the same).
+      - name: Build addon (cross x86_64 macOS)
+        if: matrix.target == 'x86_64-apple-darwin' && matrix.cross
+        run: pnpm exec napi build --platform --release --target ${{ matrix.target }}
+        env:
+          MACOSX_DEPLOYMENT_TARGET: '10.7'
+      - name: Build addon
+        if: matrix.target != 'x86_64-apple-darwin' || !matrix.cross
+        run: pnpm exec napi build --platform --release --target ${{ matrix.target }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ matrix.target }}
+          path: |
+            *.node
+          if-no-files-found: error
+      - name: Checksums
+        if: runner.os != 'Windows'
+        run: shasum -a 256 *.node >> "checksums-${{ matrix.target }}.txt"
+      - name: Checksums (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run:
+          Get-FileHash *.node -Algorithm SHA256 | Out-File "checksums-${{ matrix.target
+          }}.txt" -Encoding utf8
+      - name: Upload checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums-${{ matrix.target }}
+          path: checksums-*.txt
+          if-no-files-found: error
+
+  assemble-and-test:
+    name: assemble + packed-tarball test (${{ matrix.os }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: artifact-*
+          merge-multiple: true
+      - name: Stage artifacts into platform packages
+        run: pnpm exec napi artifacts --output-dir artifacts
+      - name: Quickstart against the packed tarball
+        run: node scripts/bare-quickstart.mjs
+
+  publish:
+    name: publish to npm
+    needs: [validate, assemble-and-test]
+    if: ${{ github.event_name == 'push' || !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: artifact-*
+          merge-multiple: true
+      - name: Stage artifacts into platform packages
+        run: pnpm exec napi artifacts --output-dir artifacts
+      - name: Publish main + platform packages (alpha channel)
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          pnpm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+          pnpm exec napi prepublish -t npm --tag alpha
+      - name: Verify publish resolution
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          for i in $(seq 1 30); do
+            if pnpm view "@laminardb/node@$VERSION" version >/dev/null 2>&1; then
+              echo "resolvable: @laminardb/node@$VERSION"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "never became resolvable" && exit 1
+
+  github-release:
+    name: GitHub release
+    needs: [publish]
+    if: ${{ always() && needs.publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: checksums
+          pattern: checksums-*
+          merge-multiple: true
+      - name: Create release with checksums
+        uses: softprops/action-gh-release@v2
+        with:
+          files: checksums/*.txt
+          generate_release_notes: true

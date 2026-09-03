@@ -22,9 +22,14 @@ jobs:
         with:
           targets: x86_64-unknown-linux-musl
       - uses: Swatinem/rust-cache@v2
-      # A full musl link needs a cross C toolchain (zigbuild joins in the
-      # release workflow, plan 04); cargo check proves the target compiles.
+      # C deps (zstd-sys and friends) run build scripts even under check;
+      # musl-tools provides the cross C compiler for them. The full musl
+      # link joins the release matrix via cargo-zigbuild (plan 04).
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools
       - run: cargo check --target x86_64-unknown-linux-musl --all-targets
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          AR_x86_64_unknown_linux_musl: ar
 
   rust-lint:
     name: rust-lint (${{ matrix.os }})

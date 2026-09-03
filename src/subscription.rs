@@ -320,8 +320,15 @@ pub struct CallbackError {
     pub message: String,
 }
 
-pub type DataCallback =
-    ThreadsafeFunction<SubscriptionFrame, (), SubscriptionFrame, napi::Status, false, true, 0>;
+pub type DataCallback = ThreadsafeFunction<
+    SubscriptionFrame,
+    napi::bindgen_prelude::Promise<()>,
+    SubscriptionFrame,
+    napi::Status,
+    false,
+    true,
+    0,
+>;
 pub type ErrorCallback =
     ThreadsafeFunction<CallbackError, (), CallbackError, napi::Status, false, true, 0>;
 pub type CloseCallback = ThreadsafeFunction<(), (), (), napi::Status, false, true, 0>;
@@ -392,7 +399,8 @@ pub fn spawn_push_subscription(
         let core = match core {
             Ok(core) => core,
             Err(error) => {
-                emit_error(&on_error, &on_close, &error).await;
+                emit_error(&on_error, &error).await;
+                let _ = on_close.call_async(()).await;
                 return;
             }
         };
@@ -406,6 +414,11 @@ pub fn spawn_push_subscription(
     })
 }
 
+/// Delivery contract: `onData` returns a promise; the reader awaits its
+/// SETTLEMENT before pulling the next frame — a slow async handler
+/// backpressures the stream. The TypeScript facade normalizes sync handlers
+/// to always-returning promises; native-seam callbacks should return a
+/// promise (void returners only work through the facade).
 async fn push_loop(
     core: SubscriptionCore,
     token: CancellationToken,
@@ -431,15 +444,25 @@ async fn push_loop(
                 let Some(frame) = SubscriptionFrame::from_msg(msg) else {
                     break;
                 };
-                if on_data.call_async(frame).await.is_err() {
+                match on_data.call_async(frame).await {
                     // Consumer gone (weak ref dropped): stop quietly.
-                    break;
+                    Err(_) => break,
+                    Ok(promise) => {
+                        if let Err(error) = promise.await {
+                            // A rejecting handler must not be spammed: report once, stop.
+                            emit_error(
+                                &on_error,
+                                &coded_error(900, &format!("onData handler rejected: {error}")),
+                            )
+                            .await;
+                            break;
+                        }
+                    }
                 }
             }
             FrameMsg::Lagged(skipped) => {
                 emit_error(
                     &on_error,
-                    &on_close,
                     &coded_error(
                         502,
                         &format!("subscription fell behind by {skipped} entries"),
@@ -448,7 +471,7 @@ async fn push_loop(
                 .await;
             }
             FrameMsg::Failed(message) => {
-                emit_error(&on_error, &on_close, &coded_error(500, &message)).await;
+                emit_error(&on_error, &coded_error(500, &message)).await;
             }
             FrameMsg::Closed => {}
         }
@@ -460,7 +483,7 @@ async fn push_loop(
     let _ = on_close.call_async(()).await;
 }
 
-async fn emit_error(on_error: &ErrorCallback, on_close: &CloseCallback, error: &Error) {
+async fn emit_error(on_error: &ErrorCallback, error: &Error) {
     let message = error.reason.clone();
     let code = message
         .strip_prefix("[LAMINAR_")
@@ -468,5 +491,4 @@ async fn emit_error(on_error: &ErrorCallback, on_close: &CloseCallback, error: &
         .and_then(|digits| digits.parse::<i32>().ok())
         .unwrap_or(500);
     let _ = on_error.call_async(CallbackError { code, message }).await;
-    let _ = on_close.call_async(()).await;
 }

@@ -115,6 +115,9 @@ export interface SubscribeOptions {
 /** Push-style handlers; every delivery is awaited, so slow handlers
  * backpressure instead of queueing. */
 export interface PushHandlers {
+  /** May be sync or async: the facade normalizes every delivery to an
+   * awaited promise, so slow handlers backpressure the stream. Rejections
+   * surface once via `onError` and stop delivery. */
   onData: (frame: SubscriptionFrame) => void | Promise<void>
   onError?: (error: { code: number; message: string }) => void
   onClose?: () => void
@@ -473,12 +476,20 @@ export class Connection {
     handlers: PushHandlers,
     options?: SubscribeOptions,
   ): PushSubscription {
+    // WHY the wrapper: native delivery awaits the returned promise, so sync
+    // handlers must still produce one; this is the settlement-aware
+    // backpressure contract (plan 03).
+    const userHandler = handlers.onData
+    const promiseReturning = (frame: SubscriptionFrame) => {
+      const settled = userHandler(frame)
+      return settled instanceof Promise ? settled : Promise.resolve()
+    }
     const native = wrapSync(() =>
       this.#native.subscribeWith(
         name,
         options?.filter ?? null,
         options?.fromEpoch ?? null,
-        handlers.onData,
+        promiseReturning,
         handlers.onError ?? (() => {}),
         handlers.onClose ?? (() => {}),
       ),

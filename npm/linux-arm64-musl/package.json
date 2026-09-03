@@ -1,0 +1,34 @@
+{
+  "name": "@laminardb/node-linux-arm64-musl",
+  "version": "0.30.0-alpha.1",
+  "cpu": [
+    "arm64"
+  ],
+  "main": "laminar_nodejs.linux-arm64-musl.node",
+  "files": [
+    "laminar_nodejs.linux-arm64-musl.node"
+  ],
+  "description": "Embedded streaming SQL for Node.js — official LaminarDB native binding",
+  "keywords": [
+    "laminardb",
+    "streaming",
+    "sql",
+    "arrow",
+    "napi-rs",
+    "node-addon"
+  ],
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">= 20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/laminardb/laminardb-nodejs.git"
+  },
+  "os": [
+    "linux"
+  ],
+  "libc": [
+    "musl"
+  ]
+}
