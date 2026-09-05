@@ -69,12 +69,15 @@ jobs:
           - { target: x86_64-apple-darwin, host: macos-latest }
           - { target: aarch64-apple-darwin, host: macos-latest, cross: true }
           - { target: x86_64-unknown-linux-gnu, host: ubuntu-latest }
-          # WHY cross from x86_64: public ubuntu-24.04-arm runners reclaim
-          # long jobs (observed twice mid-build), and both cross paths are
-          # proven — napi-cross for glibc, zigbuild for musl.
-          - { target: aarch64-unknown-linux-gnu, host: ubuntu-latest, napi-cross: true }
+          # WHY arm64-linux builds on macOS hosts: the public Linux fleets
+          # (ubuntu-latest and ubuntu-24.04-arm alike) reclaimed every long
+          # aarch64-linux build with runner shutdowns — seven kills across
+          # native and both cross toolchains — while non-arm jobs ran green.
+          # The macOS fleet has been reliable, and cargo-zigbuild crosses
+          # Linux gnu/musl targets from macOS.
+          - { target: aarch64-unknown-linux-gnu, host: macos-latest, zig: true }
           - { target: x86_64-unknown-linux-musl, host: ubuntu-latest, zig: true }
-          - { target: aarch64-unknown-linux-musl, host: ubuntu-latest, zig: true }
+          - { target: aarch64-unknown-linux-musl, host: macos-latest, zig: true }
           - { target: x86_64-pc-windows-msvc, host: windows-latest }
     runs-on: ${{ matrix.host }}
     steps:
@@ -93,8 +96,12 @@ jobs:
           node-version: 22
       - run: pnpm install --frozen-lockfile
       - name: Install zig toolchain
-        if: matrix.zig
+        if: matrix.zig && runner.os == 'Linux'
         run: pip install cargo-zigbuild ziglang
+      - name: Install zig toolchain (macOS)
+        if: matrix.zig && runner.os == 'macOS'
+        run: |
+          python3 -m pip install --break-system-packages cargo-zigbuild ziglang
       # GitHub retired x86_64 macOS runners: cross from arm64 (the Java
       # release matrix does the same).
       - name: Build addon (cross x86_64 macOS)
@@ -105,11 +112,8 @@ jobs:
       - name: Build addon (musl via zigbuild)
         if: matrix.zig
         run: pnpm exec napi build --platform --release --target ${{ matrix.target }} --cross-compile
-      - name: Build addon (arm64 gnu via napi-cross)
-        if: matrix.napi-cross
-        run: pnpm exec napi build --platform --release --target ${{ matrix.target }} --use-napi-cross
       - name: Build addon
-        if: ${{ !matrix.zig && !matrix.napi-cross && (matrix.target != 'x86_64-apple-darwin' || !matrix.cross) }}
+        if: ${{ !matrix.zig && (matrix.target != 'x86_64-apple-darwin' || !matrix.cross) }}
         run: pnpm exec napi build --platform --release --target ${{ matrix.target }}
       - name: Upload artifact
         uses: actions/upload-artifact@v4
