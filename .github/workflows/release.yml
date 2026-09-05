@@ -31,7 +31,7 @@ jobs:
       - name: Version and pin parity (plan 04 gates)
         id: versions
         run: |
-          CARGO_V=$(grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          CARGO_V=$(grep -m1 '^version' Cargo.toml | sed -E 's/^version = "([^"]+)".*/\1/')
           NPM_V=$(node -p "require('./package.json').version")
           CORE_TAG=$(grep -m1 'tag = "v' Cargo.toml | sed 's/.*tag = "\(v[0-9.]*\)".*/\1/')
           CORE_RUST=$(sed -n 's/^pub const CORE_PIN_TAG: &str = "\(.*\)";/\1/p' src/lib.rs)
