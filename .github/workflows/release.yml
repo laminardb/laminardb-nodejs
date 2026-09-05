@@ -89,9 +89,9 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --frozen-lockfile
-      - name: Install cross toolchain
+      - name: Install zig toolchain
         if: matrix.zig
-        run: pip install cargo-zigbuild
+        run: pip install cargo-zigbuild ziglang
       # GitHub retired x86_64 macOS runners: cross from arm64 (the Java
       # release matrix does the same).
       - name: Build addon (cross x86_64 macOS)
@@ -99,8 +99,11 @@ jobs:
         run: pnpm exec napi build --platform --release --target ${{ matrix.target }}
         env:
           MACOSX_DEPLOYMENT_TARGET: '10.7'
+      - name: Build addon (musl via zigbuild)
+        if: matrix.zig
+        run: pnpm exec napi build --platform --release --target ${{ matrix.target }} --cross-compile
       - name: Build addon
-        if: matrix.target != 'x86_64-apple-darwin' || !matrix.cross
+        if: ${{ !matrix.zig && (matrix.target != 'x86_64-apple-darwin' || !matrix.cross) }}
         run: pnpm exec napi build --platform --release --target ${{ matrix.target }}
       - name: Upload artifact
         uses: actions/upload-artifact@v4
