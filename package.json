@@ -21,15 +21,15 @@
     ]
   },
   "scripts": {
-    "build": "napi build --platform --release && tsc",
-    "build:debug": "napi build --platform && tsc",
+    "build": "napi build --platform --release && tsc && node scripts/split-export-chains.mjs",
+    "build:debug": "napi build --platform && tsc && node scripts/split-export-chains.mjs",
     "artifacts": "napi artifacts",
     "prepublishOnly": "napi prepublish -t npm",
     "version": "napi version",
     "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "build:ts": "tsc",
+    "build:ts": "tsc && node scripts/split-export-chains.mjs",
     "lint": "eslint .",
     "bench": "node benchmarks/bench.mjs"
   },
