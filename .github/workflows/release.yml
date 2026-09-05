@@ -46,7 +46,9 @@ jobs:
           echo "tag=$TAG cargo=$CARGO_V npm=$NPM_V core=$CORE_TAG rust_pin=$CORE_RUST"
           test "$TAG" = "$CARGO_V" || (echo "tag != Cargo.toml" && exit 1)
           test "$TAG" = "$NPM_V" || (echo "tag != package.json" && exit 1)
-          test "v$TAG" = "$CORE_TAG" || (echo "tag != pinned core tag" && exit 1)
+          # D4: the binding tracks the core's major.minor.patch; binding-only
+          # pre-release suffixes (-alpha.1) do not appear in the core tag.
+          test "v${TAG%%-*}" = "$CORE_TAG" || (echo "tag != pinned core tag" && exit 1)
           test "$CORE_TAG" = "$CORE_RUST" || (echo "Cargo pin != CORE_PIN_TAG" && exit 1)
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             grep -q "## \[.*$TAG" CHANGELOG.md || (echo "CHANGELOG entry missing" && exit 1)
