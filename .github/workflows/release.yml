@@ -31,18 +31,26 @@ jobs:
       - name: Version and pin parity (plan 04 gates)
         id: versions
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          if [ "$GITHUB_REF_TYPE" != "tag" ]; then TAG="${{ github.sha }}"; fi
           CARGO_V=$(grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
           NPM_V=$(node -p "require('./package.json').version")
           CORE_TAG=$(grep -m1 'tag = "v' Cargo.toml | sed 's/.*tag = "\(v[0-9.]*\)".*/\1/')
           CORE_RUST=$(sed -n 's/^pub const CORE_PIN_TAG: &str = "\(.*\)";/\1/p' src/lib.rs)
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME#v}"
+          else
+            # Dry run: no tag exists yet, so assert internal consistency
+            # against the manifest version; the CHANGELOG entry joins with
+            # the release-prep commit before tagging.
+            TAG="$CARGO_V"
+          fi
           echo "tag=$TAG cargo=$CARGO_V npm=$NPM_V core=$CORE_TAG rust_pin=$CORE_RUST"
           test "$TAG" = "$CARGO_V" || (echo "tag != Cargo.toml" && exit 1)
           test "$TAG" = "$NPM_V" || (echo "tag != package.json" && exit 1)
           test "v$TAG" = "$CORE_TAG" || (echo "tag != pinned core tag" && exit 1)
           test "$CORE_TAG" = "$CORE_RUST" || (echo "Cargo pin != CORE_PIN_TAG" && exit 1)
-          grep -q "## \[.*$TAG" CHANGELOG.md || (echo "CHANGELOG entry missing" && exit 1)
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            grep -q "## \[.*$TAG" CHANGELOG.md || (echo "CHANGELOG entry missing" && exit 1)
+          fi
           for f in npm/*/package.json; do
             V=$(node -p "require('./$f').version")
             test "$TAG" = "$V" || (echo "$f version mismatch: $V" && exit 1)
