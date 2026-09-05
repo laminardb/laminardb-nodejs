@@ -157,6 +157,10 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --frozen-lockfile
+      # dist/ is generated and gitignored: without this step the packed
+      # tarball carries no TypeScript layer and Node's main-fallback loads
+      # the bare native loader (no named exports — the quickstart failure).
+      - run: pnpm run build:ts
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
