@@ -6,6 +6,11 @@ pinned core (plan 00 D4, `CORE_PIN.md`).
 
 ## [Unreleased]
 
+## [0.30.0-alpha.1] — 2026-09-06
+
+First packaged release of the Node.js binding, pinning core `v0.30.0`. Embedded engine
+only; the `alpha` dist-tag carries it until 1.0.
+
 ### Added — Phase 2: subscriptions, hardening, platform breadth
 
 - Framed subscriptions over `SubscriptionPortal`: `subscribe(name, {filter, fromEpoch})`
