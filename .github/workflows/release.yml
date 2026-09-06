@@ -186,7 +186,10 @@ jobs:
     # runner's OIDC env and npm (>= 11.5.1) authenticates automatically.
     permissions:
       id-token: write
-      contents: read
+      # napi prepublish also creates the GitHub release and uploads each
+      # platform binary as a release asset after publishing it; the root
+      # package publishes last, so the run dies here without write access.
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -209,9 +212,11 @@ jobs:
       - name: Publish main + platform packages (alpha channel)
         env:
           # The dist-tag and provenance ride npm's env config into every
-          # `npm publish` napi prepublish spawns.
+          # `npm publish` napi prepublish spawns; GITHUB_TOKEN drives its
+          # release-asset uploads (registry auth stays pure OIDC).
           npm_config_tag: alpha
           NPM_CONFIG_PROVENANCE: 'true'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./node_modules/.bin/napi prepublish -t npm
       - name: Verify publish resolution
         run: |
