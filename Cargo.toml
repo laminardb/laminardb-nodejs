@@ -1,6 +1,6 @@
 [package]
 name = "laminar-nodejs"
-version = "0.30.0-alpha.1" # tracks the pinned core tag; -alpha is the Phase 1 channel (plan 00 D4)
+version = "0.30.0-alpha.2" # tracks the pinned core tag; -alpha is the pre-1.0 channel (plan 00 D4)
 edition = "2021" # matches the core workspace edition at the pin
 rust-version = "1.95" # core workspace floor at the pin
 license = "Apache-2.0"

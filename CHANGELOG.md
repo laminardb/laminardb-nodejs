@@ -6,6 +6,17 @@ pinned core (plan 00 D4, `CORE_PIN.md`).
 
 ## [Unreleased]
 
+## [0.30.0-alpha.2] — 2026-09-06
+
+### Changed
+
+- Package entry points: an `exports` map with a real ESM entry (`index.mjs`) alongside the
+  CJS build — named imports work on every Node version; `require()` unchanged. A
+  surface-parity test pins the two together.
+- README rewritten consumer-first: install, first pipeline, and the no-compilation story
+  up top; engineering material moved to a development section.
+- This is the first release published through the tokenless trusted-OIDC pipeline.
+
 ## [0.30.0-alpha.1] — 2026-09-06
 
 First packaged release of the Node.js binding, pinning core `v0.30.0`. Embedded engine
