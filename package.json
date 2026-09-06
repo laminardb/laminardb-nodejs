@@ -1,6 +1,6 @@
 {
   "name": "@laminardb/node",
-  "version": "0.30.0-alpha.2",
+  "version": "0.30.0-alpha.3",
   "description": "Embedded streaming SQL for Node.js \u2014 official LaminarDB native binding",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

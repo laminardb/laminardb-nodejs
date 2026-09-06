@@ -6,6 +6,15 @@ pinned core (plan 00 D4, `CORE_PIN.md`).
 
 ## [Unreleased]
 
+## [0.30.0-alpha.3] — 2026-09-06
+
+### Fixed
+
+- The root package tarball shipped without the TypeScript layer: the publish job never ran
+  the dist build, so both entry points dangled (caught by the registry cold install). The
+  publish job now builds the layer before packing; 0.30.0-alpha.2's root tarball is broken
+  — use this version.
+
 ## [0.30.0-alpha.2] — 2026-09-06
 
 ### Changed

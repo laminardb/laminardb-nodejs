@@ -207,6 +207,10 @@ jobs:
           path: artifacts
           pattern: artifact-*
           merge-multiple: true
+      # dist/ is generated and gitignored: the root tarball packs this
+      # workspace, so without building the TypeScript layer both entry
+      # points dangle (the registry cold install of alpha.2 caught it).
+      - run: pnpm run build:ts
       - name: Stage artifacts into platform packages
         run: pnpm exec napi artifacts --output-dir artifacts
       - name: Publish main + platform packages (alpha channel)

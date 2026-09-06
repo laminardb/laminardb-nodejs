@@ -1,6 +1,6 @@
 {
   "name": "@laminardb/node-win32-x64-msvc",
-  "version": "0.30.0-alpha.2",
+  "version": "0.30.0-alpha.3",
   "cpu": [
     "x64"
   ],
