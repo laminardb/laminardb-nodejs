@@ -1,16 +1,18 @@
-# laminardb-nodejs
+# @laminardb/node
 
-Embedded streaming SQL for Node.js and TypeScript. This is the official Node.js binding
-for [LaminarDB](https://github.com/laminardb/laminardb), built as a
-[napi-rs](https://napi.rs) native addon over a pinned core release — the same two-layer
-shape as [`laminardb-java`](https://github.com/laminardb/laminardb-java) and
-`laminardb-python`, adapted to Node idioms: every data-plane call is a `Promise`, Arrow
-data moves as IPC `Buffer`s, and failures throw a typed error hierarchy.
+Embedded streaming SQL for Node.js and TypeScript, with no compilation step: install,
+import, and query. Prebuilt native binaries ship for every major platform — nothing to
+build, no postinstall scripts, no node-gyp.
 
-Status: **alpha** — embedded MVP (Phase 1). Subscriptions (async iterators), Windows/musl
-CI, and npm distribution land over the next phases. Not yet on npm — build from source.
+```sh
+npm install @laminardb/node
+```
 
-## Quickstart
+**Requirements:** Node.js 20 or later, on macOS (x64, arm64), Linux (x64 or arm64, glibc
+or musl), or Windows (x64). TypeScript types are included — no `@types` package needed.
+(npm 11+ recommended; pnpm and yarn work as-is.)
+
+## Your first pipeline
 
 ```js
 import { LaminarDB } from '@laminardb/node'
@@ -27,37 +29,41 @@ await conn.insert('sensors', [
 const result = await conn.query(
   'SELECT device, avg(value) AS avg_value FROM sensors GROUP BY device',
 )
-console.log(result.toArray()) // [{ device: 'd1', avg_value: 21.5 }, ...]
-
-await conn.close()
+console.log(result.toArray())
+// [{ device: 'd1', avg_value: 21.5 }, { device: 'd2', avg_value: 18.25 }]
 ```
 
-Durable embedded mode is one argument plus checkpointing:
+That's the whole loop: define a source, start the pipeline, insert rows, query. `CommonJS`
+works too — `const { LaminarDB } = require('@laminardb/node')`.
 
-```js
-const conn = await LaminarDB.open('./data', { checkpoint: { intervalMs: 5000 } })
-```
+**Durable mode** is one argument:
+`LaminarDB.open('./data', { checkpoint: { intervalMs: 5000 } })` keeps your pipeline and
+data across restarts.
 
-Topology DDL (`CREATE SOURCE` / `STREAM` / `SINK`) must run before `start()`; manual
-`checkpoint()` requires at least one stream or sink in the topology (the core wires the
-checkpoint coordinator only for real pipelines).
+> Two rules from the engine: `CREATE SOURCE` / `CREATE STREAM` / `CREATE SINK` must run
+> **before** `start()`, and manual `checkpoint()` needs at least one stream or sink in the
+> topology.
 
-## Data access
+## Reading results
 
-- `result.toArray()` / `batch.toArray()` — row objects, no dependencies. Conventions:
-  temporal columns are **milliseconds since epoch** in and out; `Int64`/`UInt64` cross as
-  JS `BigInt`.
-- `result.toIPC()` / `batch.toIPC()` — one Arrow IPC stream `Buffer`; rehydrate with
-  [`apache-arrow`](https://www.npmjs.com/package/apache-arrow) (an optional peer
-  dependency): `tableFromIPC(result.toIPC())` or the bundled `tableFrom(result)` helper.
-- `conn.insertArrow(source, buffer)` / `writer.writeArrow(buffer)` — bulk ingestion
-  straight from Arrow IPC data.
-- `conn.writer(source)` — streaming writer with `writeRows`, `watermark`, and backpressure
-  visibility (`pending` / `capacity` / `isBackpressured`).
+- `result.toArray()` — plain row objects, zero dependencies. `Date`-like columns are epoch
+  milliseconds; 64-bit integers are JS `BigInt`.
+- `result.toIPC()` — an [Apache Arrow](https://www.npmjs.com/package/apache-arrow) IPC
+  `Buffer`, for when rows get big: `tableFromIPC(result.toIPC())` (or the bundled
+  `tableFrom(result)`).
+- Batch at a time: `result.numBatches()`, `result.batch(i)`.
 
-## Subscriptions
+## Writing data
 
-Streams and materialized views are consumable frame by frame — async-iterable first:
+- `conn.insert('sensors', rows)` — row objects, validated per value with a clear error
+  naming the column.
+- `conn.insertArrow('sensors', ipcBuffer)` — bulk load straight from Arrow IPC data.
+- `conn.writer('sensors')` — streaming writer with event-time `watermark(ts)` and
+  backpressure visibility (`pending()`, `isBackpressured()`).
+
+## Subscribing to streams
+
+Consume a stream or materialized view as it computes — async iteration first:
 
 ```js
 const sub = await conn.subscribe('sensor_rollup')
@@ -67,56 +73,60 @@ for await (const frame of sub) {
 }
 ```
 
-Push style delivers awaited frames to handlers (a slow handler backpressures instead of
-queueing): `conn.subscribeWith('sensor_rollup', { onData, onError, onClose })`. Streaming
-queries work the same way: `for await (const batch of conn.streamQuery(sql))`.
-
-Telemetry (`metrics()`, `sourceMetrics()`, `pipelineState()`, `pipelineWatermark()`,
-`totalEventsProcessed()`) and query cancellation (`cancelQuery(id)`) round out the runtime
-surface. Benchmark baseline: `docs/benchmarks.md`.
+Prefer callbacks? `conn.subscribeWith('sensor_rollup', { onData, onError, onClose })`
+delivers awaited frames — a slow handler slows the stream instead of growing a queue.
+Streaming queries work the same way:
+`for await (const batch of conn.streamQuery(sql)) {}`.
 
 ## Errors
 
-Every failure throws a `LaminarError` subclass carrying the core's numeric `code`:
-`LaminarConnectionError` (100s), `LaminarSchemaError` (200s), `LaminarIngestionError`
-(300s), `LaminarQueryError` (400s), `LaminarSubscriptionError` (500s),
-`LaminarInternalError` (900s).
+Every failure throws a `LaminarError` subclass with a numeric `code`:
+
+| Class                      | Codes | Meaning                                   |
+| -------------------------- | ----- | ----------------------------------------- |
+| `LaminarConnectionError`   | 100s  | connection lifecycle                      |
+| `LaminarSchemaError`       | 200s  | unknown table, schema problems            |
+| `LaminarIngestionError`    | 300s  | bad rows, wrong types, closed writer      |
+| `LaminarQueryError`        | 400s  | SQL errors, non-queries                   |
+| `LaminarSubscriptionError` | 500s  | subscription failures (502 = fell behind) |
+| `LaminarInternalError`     | 900s  | engine or binding internals               |
 
 ```js
 try {
   conn.insert('sensors', [{ ts: 1, device: 'd1', value: 'oops' }])
 } catch (error) {
-  if (error.code === 300) {
-    // error.message: column 'value': expected a number, got string (row 0)
+  if (error instanceof LaminarIngestionError) {
+    // "column 'value': expected a number, got string (row 0)"
   }
 }
 ```
 
-## Build from source
+Runtime observability: `conn.metrics()`, `conn.sourceMetrics(name)`,
+`conn.pipelineState()`, `conn.pipelineWatermark()`, `conn.totalEventsProcessed()`; long
+queries can be cancelled with `conn.cancelQuery(id)`.
 
-Requires Rust stable (≥ 1.95) and Node ≥ 20 with pnpm.
+## Status
+
+`0.30.0-alpha` — the embedded surface is complete (queries, ingestion, subscriptions,
+telemetry); the API may still change before 1.0. This binding pins
+[LaminarDB](https://github.com/laminardb/laminardb) core `v0.30.0` and covers embedded
+mode; multi-node clusters run through the server, not in-process.
+
+## Developing this repository
+
+Contributions need Rust stable (≥ 1.95), Node ≥ 20, and
+[just](https://github.com/casey/just):
 
 ```sh
-just install   # pnpm install (@napi-rs/cli, vitest, prettier, typescript, apache-arrow)
-just build     # debug addon + generated loader + TypeScript layer (dist/)
-just test      # vitest suites against the built addon
-just verify    # fmt + clippy -D warnings + rust tests + build + vitest
+just install   # pnpm install
+just build     # native addon + TypeScript layer
+just test      # full suite against the built addon
+just verify    # fmt + clippy + rust tests + build + vitest
 ```
 
-The first build clones and compiles the pinned LaminarDB core (git tag in `Cargo.toml`,
-registry in `CORE_PIN.md`) — expect a long cold build.
-
-## Platform support
-
-The release matrix (Phase 3) covers macOS x64/arm64, Linux x64/arm64 (glibc and musl), and
-Windows x64, distributed as per-platform optional npm packages with no postinstall and no
-source compilation. Until then, `napi build` works anywhere the toolchain does.
-
-## Documentation
-
-- `docs/plans/` — decision records and phase plans (start at
-  `00-overview-and-decisions.md`)
-- `CORE_PIN.md` — which core release each binding version ships
-- `CHANGELOG.md`
+The first build compiles the pinned Rust core — expect a long cold build. Engineering
+records live in `docs/plans/` (decision records, phase plans) and `docs/reviews/`;
+`CORE_PIN.md` tracks which core release each version ships; `docs/benchmarks.md` holds the
+measured baseline.
 
 Apache-2.0, like the core.
