@@ -217,7 +217,14 @@ jobs:
           npm_config_tag: alpha
           NPM_CONFIG_PROVENANCE: 'true'
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./node_modules/.bin/napi prepublish -t npm
+        run: |
+          ./node_modules/.bin/napi prepublish -t npm
+          # napi prepublish publishes only the platform packages (its
+          # template expects `npm publish` at the root to do the rest);
+          # --ignore-scripts skips the second prepublishOnly pass — the
+          # platform packages are already out and the injected
+          # optionalDependencies are in package.json.
+          npm publish --ignore-scripts
       - name: Verify publish resolution
         run: |
           VERSION="${{ needs.validate.outputs.version }}"
