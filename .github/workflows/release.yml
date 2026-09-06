@@ -175,11 +175,18 @@ jobs:
         run: node scripts/bare-quickstart.mjs
 
   publish:
-    name: publish to npm
+    name: publish to npm (trusted OIDC)
     needs: [validate, assemble-and-test]
     if: ${{ github.event_name == 'push' || !inputs.dry-run }}
     runs-on: ubuntu-latest
     environment: npm
+    # Trusted publishing: npm exchanges this workflow's OIDC identity for a
+    # short-lived publish grant (registered per package on npmjs.com) — no
+    # token, no OTP. napi prepublish's spawned `npm publish` inherits the
+    # runner's OIDC env and npm (>= 11.5.1) authenticates automatically.
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -188,7 +195,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
+      # setup-node's bundled npm predates trusted publishing (needs >= 11.5.1).
+      - run: npm install -g npm@latest && npm --version
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -198,20 +208,12 @@ jobs:
         run: pnpm exec napi artifacts --output-dir artifacts
       - name: Publish main + platform packages (alpha channel)
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # The dist-tag rides npm's env config: napi prepublish shells out to
-          # `npm publish` with process.env, and npm_config_tag reaches every
-          # invocation. (--tag on the command line is claimed by pnpm exec.)
+          # The dist-tag and provenance ride npm's env config into every
+          # `npm publish` napi prepublish spawns.
           npm_config_tag: alpha
-        run: |
-          # napi prepublish runs each `npm publish` from a temp directory,
-          # so the token must live in the user-level .npmrc the temp-cwd npm
-          # resolves through $HOME — a project .npmrc never reaches it.
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> "$HOME/.npmrc"
-          ./node_modules/.bin/napi prepublish -t npm
+          NPM_CONFIG_PROVENANCE: 'true'
+        run: ./node_modules/.bin/napi prepublish -t npm
       - name: Verify publish resolution
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           VERSION="${{ needs.validate.outputs.version }}"
           for i in $(seq 1 30); do
