@@ -242,6 +242,9 @@ jobs:
     needs: [publish]
     if: ${{ always() && needs.publish.result == 'success' }}
     runs-on: ubuntu-latest
+    permissions:
+      # generate_release_notes and asset uploads on the release napi created.
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
