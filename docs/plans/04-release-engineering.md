@@ -58,9 +58,11 @@ testable end to end minus the registry write.
       `npm/`, `pnpm pack`, install the tarball into a throwaway project (the
       bare-quickstart script with the platform package staged from the local `npm/` dir),
       run the quickstart.
-- [x] `publish` job (needs all of the above, environment `npm`):
-      `napi prepublish -t npm --tag alpha` (the pre-1.0 channel; move to `latest` at 1.0)
-      — publishes the main package and the six platform packages with `NPM_TOKEN`.
+- [x] `publish` job (needs all of the above, environment `npm`): as built it authenticates
+      through trusted OIDC (`id-token: write`, npm ≥ 11.5.1, `NPM_CONFIG_PROVENANCE=true`,
+      no secrets) — `napi prepublish -t npm --tag alpha` (the pre-1.0 channel; move to
+      `latest` at 1.0) — publishes the main package and the six platform packages with
+      `NPM_TOKEN`.
 - [x] `verify-publish` job: poll `npm view @laminardb/node@<version>` until resolvable,
       then install it into a scratch project on the runner and print `version()`.
 - [x] `github-release`: upload checksums + the bench output from the triggering commit's
