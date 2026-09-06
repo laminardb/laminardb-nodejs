@@ -199,9 +199,13 @@ jobs:
       - name: Publish main + platform packages (alpha channel)
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # The dist-tag rides npm's env config: napi prepublish shells out to
+          # `npm publish` with process.env, and npm_config_tag reaches every
+          # invocation. (--tag on the command line is claimed by pnpm exec.)
+          npm_config_tag: alpha
         run: |
           pnpm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
-          pnpm exec napi prepublish -t npm --tag alpha
+          ./node_modules/.bin/napi prepublish -t npm
       - name: Verify publish resolution
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
