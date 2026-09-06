@@ -42,7 +42,11 @@ testable end to end minus the registry write.
       before publishing).
 - [x] `validate` job: the full gate table above (the `just review` tooling already gates
       every push in ci.yml; the release gate adds the parity table).
-- [x] `build` matrix (one job per target): - `darwin-arm64` / `darwin-x64`: native runners
+- [x] `build` matrix (one job per target). As built (deviating from the original sketch
+      above): arm64-linux targets build on **macOS hosts via cargo-zigbuild** — the public
+      Linux fleets reclaimed every long aarch64-linux build with runner shutdowns (seven
+      kills across native and cross hosts); `x86_64` macOS cross-compiles from
+      `macos-latest` as sketched: - `darwin-arm64` / `darwin-x64`: native runners
       (`macos-latest`, `macos-15-intel` or cross from arm64 — x86_64 macOS runners are
       retired; cross-compile with `rustup target add` + `napi build       --target` and a
       linker env, matching the Java repo's approach). - `linux-x64-gnu` /

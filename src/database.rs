@@ -258,28 +258,28 @@ impl Connection {
     /// Registered source names.
     #[napi]
     pub async fn list_sources(&self) -> Result<Vec<String>> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         Ok(self.db.sources().into_iter().map(|s| s.name).collect())
     }
 
     /// Registered stream names.
     #[napi]
     pub async fn list_streams(&self) -> Result<Vec<String>> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         Ok(self.db.streams().into_iter().map(|s| s.name).collect())
     }
 
     /// Registered sink names.
     #[napi]
     pub async fn list_sinks(&self) -> Result<Vec<String>> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         Ok(self.db.sinks().into_iter().map(|s| s.name).collect())
     }
 
     /// All registered sources with schemas and watermark columns.
     #[napi]
     pub async fn source_infos(&self) -> Result<Vec<SourceInfoObject>> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         Ok(self
             .db
             .sources()
@@ -295,7 +295,7 @@ impl Connection {
     /// Schema of a source as field info; unknown names reject `LAMINAR_200`.
     #[napi]
     pub async fn schema(&self, name: String) -> Result<Vec<FieldInfo>> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         let source = self
             .db
             .sources()
@@ -395,56 +395,56 @@ impl Connection {
     /// Aggregate pipeline counters.
     #[napi]
     pub async fn metrics(&self) -> Result<PipelineMetricsObject> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         Telemetry::metrics(&self.db).await
     }
 
     /// Counters for one source; unknown names reject `LAMINAR_200`.
     #[napi]
     pub async fn source_metrics(&self, name: String) -> Result<SourceMetricsObject> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         Telemetry::source_metrics(&self.db, &name).await
     }
 
     /// Counters for every source.
     #[napi]
     pub async fn all_source_metrics(&self) -> Result<Vec<SourceMetricsObject>> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         Telemetry::all_source_metrics(&self.db).await
     }
 
     /// Counters for one stream; unknown names reject `LAMINAR_200`.
     #[napi]
     pub async fn stream_metrics(&self, name: String) -> Result<StreamMetricsObject> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         Telemetry::stream_metrics(&self.db, &name).await
     }
 
     /// Counters for every stream.
     #[napi]
     pub async fn all_stream_metrics(&self) -> Result<Vec<StreamMetricsObject>> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         Telemetry::all_stream_metrics(&self.db).await
     }
 
     /// Engine lifecycle state name.
     #[napi]
     pub async fn pipeline_state(&self) -> Result<String> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         Telemetry::pipeline_state(&self.db).await
     }
 
     /// Minimum event-time watermark across sources (epoch milliseconds).
     #[napi]
     pub async fn pipeline_watermark(&self) -> Result<i64> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         Telemetry::pipeline_watermark(&self.db).await
     }
 
     /// Total events the pipeline has processed.
     #[napi]
     pub async fn total_events_processed(&self) -> Result<i64> {
-        self.ensure_open_async().await?;
+        self.ensure_open()?;
         Telemetry::total_events_processed(&self.db).await
     }
 
@@ -476,10 +476,6 @@ impl Connection {
             return Err(connection_closed_error());
         }
         Ok(())
-    }
-
-    async fn ensure_open_async(&self) -> Result<()> {
-        self.ensure_open()
     }
 }
 

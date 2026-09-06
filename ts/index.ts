@@ -112,8 +112,7 @@ export interface SubscribeOptions {
   fromEpoch?: number
 }
 
-/** Push-style handlers; every delivery is awaited, so slow handlers
- * backpressure instead of queueing. */
+/** Push-style handlers for `subscribeWith`. */
 export interface PushHandlers {
   /** May be sync or async: the facade normalizes every delivery to an
    * awaited promise, so slow handlers backpressure the stream. Rejections

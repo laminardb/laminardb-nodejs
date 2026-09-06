@@ -111,9 +111,12 @@ jobs:
           MACOSX_DEPLOYMENT_TARGET: '10.7'
       - name: Build addon (musl via zigbuild)
         if: matrix.zig
-        run: pnpm exec napi build --platform --release --target ${{ matrix.target }} --cross-compile
+        run:
+          pnpm exec napi build --platform --release --target ${{ matrix.target }}
+          --cross-compile
       - name: Build addon
-        if: ${{ !matrix.zig && (matrix.target != 'x86_64-apple-darwin' || !matrix.cross) }}
+        if:
+          ${{ !matrix.zig && (matrix.target != 'x86_64-apple-darwin' || !matrix.cross) }}
         run: pnpm exec napi build --platform --release --target ${{ matrix.target }}
       - name: Upload artifact
         uses: actions/upload-artifact@v4
