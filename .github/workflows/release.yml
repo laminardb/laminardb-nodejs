@@ -204,7 +204,10 @@ jobs:
           # invocation. (--tag on the command line is claimed by pnpm exec.)
           npm_config_tag: alpha
         run: |
-          pnpm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+          # napi prepublish runs each `npm publish` from a temp directory,
+          # so the token must live in the user-level .npmrc the temp-cwd npm
+          # resolves through $HOME — a project .npmrc never reaches it.
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> "$HOME/.npmrc"
           ./node_modules/.bin/napi prepublish -t npm
       - name: Verify publish resolution
         env:
